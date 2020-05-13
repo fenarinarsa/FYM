@@ -1,0 +1,40 @@
+;@com.wudsn.ide.asm.hardware=APPLE2
+
+echo_ptr	=	$00		; zp0001
+
+; By Steve Wozniak
+;-------------------------------------------------------------------------
+;  Subroutine to print a byte in A in hex form (destructive)
+;  Address of line to print at zp0001, column number in Y
+;-------------------------------------------------------------------------
+
+PRBYTE          PHA                     ;Save A for LSD
+                LSR
+                LSR
+                LSR                     ;MSD to LSD position
+                LSR
+                JSR     PRHEX           ;Output hex digit
+                PLA                     ;Restore A
+
+; Fall through to print hex routine
+
+;-------------------------------------------------------------------------
+;  Subroutine to print a hexadecimal digit
+;-------------------------------------------------------------------------
+
+PRHEX           AND     #$0F		    ;Mask LSD for hex print
+                ORA     #"0"           ;Add "0"
+                CMP     #"9"+1           ;Is it a decimal digit?
+                BCC     ECHO            ;Yes! output it
+                ADC     #6              ;Add offset for letter A-F
+
+; Fall through to print routine
+
+;-------------------------------------------------------------------------
+;  Subroutine to print a character to the terminal
+;-------------------------------------------------------------------------
+
+ECHO            STA		(echo_ptr),Y
+				INY
+                RTS
+

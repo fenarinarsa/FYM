@@ -1,0 +1,8 @@
+*.dsk
+*.b
+*.fym
+*.ym
+bin
+obj
+.vs
+
