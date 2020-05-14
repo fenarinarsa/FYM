@@ -1,27 +1,26 @@
 ;@com.wudsn.ide.asm.hardware=APPLE2 
-; ACME 0.90
 ; Chiptune Player for MOCKINGBOARD (based on FYM format)
-; MockingboardYM
-; by fenarinarsa (2019) and FRENCH TOUCH (2017)
+; FYM player
+; by fenarinarsa (2019) and Grouik/FRENCH TOUCH (2017)
 ;
-; This file is part of MockingboardYM.
+; This file is part of FYM.
 ;
-; MockingboardYM is free software: you can redistribute it and/or modify
+; FYM is free software: you can redistribute it and/or modify
 ; it under the terms of the GNU General Public License as published by
 ; the Free Software Foundation, either version 3 of the License, or
 ; (at your option) any later version.
 ;
-; MockingboardYM is distributed in the hope that it will be useful,
+; FYM is distributed in the hope that it will be useful,
 ; but WITHOUT ANY WARRANTY; without even the implied warranty of
 ; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
 ; GNU General Public License for more details.
 ;
 ; You should have received a copy of the GNU General Public License
-; along with MockingboardYM.  If not, see<https://www.gnu.org/licenses/>.
+; along with FYM.  If not, see<https://www.gnu.org/licenses/>.
 
 
-!convtab "a2txt.bin" 	; incorporation table caractère APPLE II (normal) générale
-!sl "mainlabel.a"		; sauvegarde labels (debug)
+!convtab "a2txt.bin" 	; incorporation table caractÃ¨re APPLE II (normal) gÃ©nÃ©rale
+!sl "lbl_main.txt"		; sauvegarde labels (debug)
 !cpu 65c02
 
 		*= $1000 		; ORG
@@ -97,19 +96,19 @@ MAIN
 		STA $C404
 		STA $C405
 		
-		; détection MB (TEST 1 : vérification Timer 6522)
+		; dï¿½tection MB (TEST 1 : vï¿½rification Timer 6522)
 
-;		LDX #02					; 2 vérifs;
+;		LDX #02					; 2 vï¿½rifs;
 ;
-;.bd		LDA $C404				; timer 6522 (Low Order Counter) - attention compte à rebour !;
+;.bd		LDA $C404				; timer 6522 (Low Order Counter) - attention compte ï¿½ rebour !;
 ;		STA Temp				; 3 cycles
-;		LDA $C404				; + 4 cycles = 7 cycles entre les deux accès au timer
+;		LDA $C404				; + 4 cycles = 7 cycles entre les deux accï¿½s au timer
 ;		SEC						; 
 ;		SBC Temp				; 
-;		CMP #$F9				; -7 (compte à rebour) ?
+;		CMP #$F9				; -7 (compte ï¿½ rebour) ?
 ;		BNE .Ko
 ;		DEX
-;		BNE .bd					; boucle détection
+;		BNE .bd					; boucle dï¿½tection
 ;		JMP .Ok
 ;		
 		; bad guy
@@ -504,7 +503,7 @@ PLAYERYM
 		LDA #00
 		JMP .gA2
 		
-.gA1	LDA TableData,X		; valeur à mettre dans le registre
+.gA1	LDA TableData,X		; valeur ï¿½ mettre dans le registre
 .gA2	;AY-1
 		STX $C401			; ORA1 (data)
 		LDY #$07			; Set fct "Set PSG Reg #"
@@ -525,7 +524,7 @@ PLAYERYM
 		LDA #00
 		JMP .gB2
 
-.gB1	LDA TableData,X		; valeur à mettre dans le registre dans le Registre 
+.gB1	LDA TableData,X		; valeur ï¿½ mettre dans le registre dans le Registre 
 .gB2	;AY-1
 		STX $C401			; ORA1 (data)
 		LDY #$07			; Set fct "Set PSG Reg #"
@@ -546,7 +545,7 @@ PLAYERYM
 		LDA #00
 		JMP .gC2
 		
-.gC1	LDA TableData,X		; valeur à mettre dans le registre dans le Registre 
+.gC1	LDA TableData,X		; valeur ï¿½ mettre dans le registre dans le Registre 
 .gC2	;AY-1
 		STX $C401			; ORA1 (data)
 		LDY #$07			; Set fct "Set PSG Reg #"
@@ -624,7 +623,7 @@ PLAYERYM
 		LDA #00
 		JMP .gA2
 		
-.gA1	LDA TableData2,X		; valeur à mettre dans le registre
+.gA1	LDA TableData2,X		; valeur ï¿½ mettre dans le registre
 .gA2	;AY-2
 		STX $C481
 		LDY #$07			; Set fct "Set PSG Reg #"
@@ -645,7 +644,7 @@ PLAYERYM
 		LDA #00
 		JMP .gB2
 
-.gB1	LDA TableData2,X		; valeur à mettre dans le registre dans le Registre 
+.gB1	LDA TableData2,X		; valeur ï¿½ mettre dans le registre dans le Registre 
 .gB2	;AY-2
 		STX $C481
 		LDY #$07			; Set fct "Set PSG Reg #"
@@ -666,7 +665,7 @@ PLAYERYM
 		LDA #00
 		JMP .gC2
 		
-.gC1	LDA TableData2,X		; valeur à mettre dans le registre dans le Registre 
+.gC1	LDA TableData2,X		; valeur ï¿½ mettre dans le registre dans le Registre 
 .gC2	;AY-2
 		STX $C481
 		LDY #$07			; Set fct "Set PSG Reg #"
@@ -897,17 +896,17 @@ DETECTMB
 			ORA #$C0				; -> $Cx
 			STA OUT2+1
 			LDY #04					; $CX04
-			LDX #02					; 2 vérifs
+			LDX #02					; 2 vï¿½rifs
 
-.bt			LDA (OUT2),Y			; timer 6522 (Low Order Counter) - attention compte à rebour !
+.bt			LDA (OUT2),Y			; timer 6522 (Low Order Counter) - attention compte ï¿½ rebour !
 			STA Temp				; 3 cycles
-			LDA (OUT2),Y			; + 5 cycles = 8 cycles entre les deux accès au timer
+			LDA (OUT2),Y			; + 5 cycles = 8 cycles entre les deux accï¿½s au timer
 			SEC						; 
 			SBC Temp				; 
-			CMP #$F8				; -8 (compte à rebour) ?
+			CMP #$F8				; -8 (compte ï¿½ rebour) ?
 			BNE .Ko
 			DEX
-			BNE .bt					; boucle détection
+			BNE .bt					; boucle dï¿½tection
 			INX						; Mocking OK (X=1)
 .end		LDA .bdet+1
 			CLC
@@ -916,9 +915,9 @@ DETECTMB
 			;STX bMB					;
 			RTS
 		
-.Ko			DEC .bdet+1				; on décrémente le "slot"
-			BNE	.bdet				; on boucle de 7 à 1
-			;INC bGood				; !=0 bad guy si pas de MB  *** Eventuellement à comment si suite OK sans MB ***
+.Ko			DEC .bdet+1				; on dï¿½crï¿½mente le "slot"
+			BNE	.bdet				; on boucle de 7 ï¿½ 1
+			;INC bGood				; !=0 bad guy si pas de MB  *** Eventuellement ï¿½ comment si suite OK sans MB ***
 			LDX #00
 			;BEQ .end				; tj pris - on sort (bad guy)
 			RTS
@@ -933,7 +932,7 @@ Init_MB			; init Mockingboard
 		STA 	OUT1+1
 		STA		OUT3+1
 		STA 	OUT4+1
-		;STA		OFFBIT+2	; fixe BIT $Cx04 (réinit interruption) du player
+		;STA		OFFBIT+2	; fixe BIT $Cx04 (rï¿½init interruption) du player
 		LDA 	#$01
 		STA 	OUT1
 		LDA 	#$81
