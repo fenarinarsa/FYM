@@ -21,7 +21,7 @@
 
 !convtab "a2txt.bin" 	; incorporation table caractère APPLE II (normal) générale
 !sl "lbl_main.txt"		; sauvegarde labels (debug)
-!cpu 65c02
+!cpu 6502
 
 		*= $1000 		; ORG
 
@@ -220,11 +220,12 @@ MAIN
 		
 		JSR YMRESET
 		
-		stz pattern
+		LDA #0
+		STA pattern
 
 		; prepare tune data
 
-		LDA	$2000
+		LDA $2000
 		STA SeqLength
 		STA SeqCount
 		
@@ -254,10 +255,9 @@ MAIN
 		LDA Mem+1
 		ADC #0
 		STA Mem+1
-		BRA .reloc1
+		JMP .reloc1
 
 .end_relocate		
-
 
 		; packbits file format
 		; 1 control byte (n) + ? data bytes
@@ -287,7 +287,8 @@ MAIN
 		EOR #$FF
 		SEC
 		ADC #$00				; negate A
-.b1pos	INC
+.b1pos	CLC
+	ADC #1
 		STA TableCompteur,X
 		INY
 		LDA (Mem),Y				; value byte
@@ -413,7 +414,7 @@ debug	lda	#$00
 		ldx	#$00
 		ldy	#$00
 .dbg_ptrB
-		lda	TableOffsetDataB,X
+		lda TableOffsetDataB,X
 		jsr PRBYTE
 		inx
 		cpx #14
@@ -470,8 +471,10 @@ PLAYERYM
 !zone
 		php
 		pha			; on sauve A
-		phx
-		phy
+		TXA
+		PHA
+		TYA
+		PHA
 		;sta $c055
 		; "remplissage" Registres
 		BIT $C404           ; Clears interrupt (T1CL)
@@ -722,30 +725,28 @@ PLAYERYM
 		bne .shiftdata
 
 		!zone unpack_data
-		LDA SeqCount
-		DEC
-		STA SeqCount
+		DEC SeqCount
 		BNE .unpack_sequence
 		JMP next_sequence
 		
 .unpack_sequence
 		; handling packbits
 		LDX #13
-.b2		LDA TableCompteur,X
-		DEC
+.b2		DEC TableCompteur,X
 		BEQ .nextpacket ; ==0 read next control byte
-		STA TableCompteur,X ; !=0 still in repeat mode
+		; !=0 still in repeat mode
 		
 		LDA TableCompression,X
 		BNE .g2					; repeat mode
 		
 		; copy mode
 		; ptr+1 next value byte
-		LDA TableOffsetDataB,X
-		STA Mem
+		LDY TableOffsetDataB,X
+		STY Mem
 		;CLC
 		;ADC #01
-		INC
+		INY
+		TYA
 		STA TableOffsetDataB,X
 		LDA TableOffsetDataH,X
 		STA Mem+1
@@ -771,7 +772,8 @@ PLAYERYM
 
 .nextpacket
 		LDY #00
-		STZ TableCompression,X	; clear compression mode
+		TYA
+		STA TableCompression,X	; clear compression mode
 		LDA TableOffsetDataB,X
 		STA Mem
 		LDA TableOffsetDataH,X
@@ -785,7 +787,9 @@ PLAYERYM
 		EOR #$FF
 		SEC
 		ADC #$00				; negate A
-.b1pos	INC
+.b1pos	;INC
+	CLC
+	ADC #1
 		STA TableCompteur,X
 		INY
 		LDA (Mem),Y				; value byte
@@ -821,7 +825,7 @@ next_sequence
 		LDA (pPartition),Y
 		BNE .okay
 		; end of partition, looping to the start of the song
-		stz pattern
+		STY pattern
 		LDA #$20
 		STA pPartition+1
 		LDA #$01
@@ -836,8 +840,10 @@ next_sequence
 
 		; reset RLE depack counters
 		LDX #13
-.binit	STZ TableCompression,X
+.binit	
 		LDY #00
+		TYA
+		STA TableCompression,X
 		LDA TableOffsetDataB,X
 		STA Mem
 		LDA TableOffsetDataH,X
@@ -849,7 +855,8 @@ next_sequence
 		EOR #$FF
 		SEC
 		ADC #$00				; negate A
-.binit1	INC
+.binit1	CLC
+	ADC #1
 		STA TableCompteur,X
 		INY
 		LDA (Mem),Y				; value byte
@@ -880,8 +887,10 @@ exit_interrupt
 		
 		STA $c054
 		
-		PLY
-		PLX
+		PLA
+		TAY
+		PLA
+		TAX
 		PLA
 		PLP
 		RTI					; sortie 2
