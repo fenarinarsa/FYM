@@ -455,7 +455,7 @@ PLAYERYM
 	; "remplissage" Registres
 	BIT $C404           ; Clears interrupt (T1CL)
 
-	!zone psg1
+	!zone psg
 	LDX #00
 	; R0/R1/R2/R3/R4/R5/R6/R7
 .br1	LDA TableData,X
@@ -470,19 +470,29 @@ PLAYERYM
 	STY $C400			; ORB1 (fct)
 	LDY #$04			; Set fct "Inactive"
 	STY $C400			; ORB1 (fct)
+	;AY-2
+	STX $C481			; ORA1 (data)
+	LDY #$07			; Set fct "Set PSG Reg #"
+	STY $C480			; ORB1 (fct)
+	LDY #$04			; Set fct "Inactive"
+	STY $C480			; ORB1 (fct)
+	STA $C481			; ORA1 (data)
+	LDY #$06			; Set fct "Write DATA"
+	STY $C480			; ORB1 (fct)
+	LDY #$04			; Set fct "Inactive"
+	STY $C480			; ORB1 (fct)
 	INX
 	CPX #8				; 
 	BNE .br1
 	
 	; -----------------------------
 	; VOLUME A			; r8
-	; AY-1
 	lda bvolA
 	BNE .gA1
 	LDA #00
 	JMP .gA2
 		
-.gA1	LDA TableData,X		; valeur � mettre dans le registre
+.gA1	LDA TableData,X		; value to put into aY register
 .gA2	;AY-1
 	STX $C401			; ORA1 (data)
 	LDY #$07			; Set fct "Set PSG Reg #"
@@ -494,16 +504,27 @@ PLAYERYM
 	STY $C400			; ORB1 (fct)
 	LDY #$04			; Set fct "Inactive"
 	STY $C400			; ORB1 (fct)
+	;AY-2
+	STX $C481			; ORA1 (data)
+	LDY #$07			; Set fct "Set PSG Reg #"
+	STY $C480			; ORB1 (fct)
+	LDY #$04			; Set fct "Inactive"
+	STY $C480			; ORB1 (fct)
+	STA $C481			; ORA1 (data)
+	LDY #$06			; Set fct "Write DATA"
+	STY $C480			; ORB1 (fct)
+	LDY #$04			; Set fct "Inactive"
+	STY $C480			; ORB1 (fct)
 	
 	; -----------------------------
 	; VOLUME B
-	INX					; r9
+	INX			; r9
 	lda bvolB
 	BNE .gB1
 	LDA #00
 	JMP .gB2
 
-.gB1	LDA TableData,X		; valeur � mettre dans le registre dans le Registre 
+.gB1	LDA TableData,X		; value to put into aY register
 .gB2	;AY-1
 	STX $C401			; ORA1 (data)
 	LDY #$07			; Set fct "Set PSG Reg #"
@@ -515,16 +536,27 @@ PLAYERYM
 	STY $C400			; ORB1 (fct)
 	LDY #$04			; Set fct "Inactive"
 	STY $C400			; ORB1 (fct)
+	;AY-2
+	STX $C481			; ORA1 (data)
+	LDY #$07			; Set fct "Set PSG Reg #"
+	STY $C480			; ORB1 (fct)
+	LDY #$04			; Set fct "Inactive"
+	STY $C480			; ORB1 (fct)
+	STA $C481			; ORA1 (data)
+	LDY #$06			; Set fct "Write DATA"
+	STY $C480			; ORB1 (fct)
+	LDY #$04			; Set fct "Inactive"
+	STY $C480			; ORB1 (fct)
 	
 	; -----------------------------
 	; VOLUME C
-	INX					; r10
+	INX			; r10
 	lda bvolC
 	BNE .gC1
 	LDA #00
 	JMP .gC2
 		
-.gC1	LDA TableData,X		; valeur � mettre dans le registre dans le Registre 
+.gC1	LDA TableData,X		; value to put into aY register
 .gC2	;AY-1
 	STX $C401			; ORA1 (data)
 	LDY #$07			; Set fct "Set PSG Reg #"
@@ -536,9 +568,20 @@ PLAYERYM
 	STY $C400			; ORB1 (fct)
 	LDY #$04			; Set fct "Inactive"
 	STY $C400			; ORB1 (fct)
+	;AY-2
+	STX $C481			; ORA1 (data)
+	LDY #$07			; Set fct "Set PSG Reg #"
+	STY $C480			; ORB1 (fct)
+	LDY #$04			; Set fct "Inactive"
+	STY $C480			; ORB1 (fct)
+	STA $C481			; ORA1 (data)
+	LDY #$06			; Set fct "Write DATA"
+	STY $C480			; ORB1 (fct)
+	LDY #$04			; Set fct "Inactive"
+	STY $C480			; ORB1 (fct)
 	; -----------------------------
 
-	INX					; r11
+	INX			; r11
 	; R11/R12/R13
 .br2	LDA TableData,X
 	;AY-1
@@ -552,8 +595,19 @@ PLAYERYM
 	STY $C400			; ORB1 (fct)
 	LDY #$04			; Set fct "Inactive"
 	STY $C400			; ORB1 (fct)
+	;AY-2
+	STX $C481			; ORA1 (data)
+	LDY #$07			; Set fct "Set PSG Reg #"
+	STY $C480			; ORB1 (fct)
+	LDY #$04			; Set fct "Inactive"
+	STY $C480			; ORB1 (fct)
+	STA $C481			; ORA1 (data)
+	LDY #$06			; Set fct "Write DATA"
+	STY $C480			; ORB1 (fct)
+	LDY #$04			; Set fct "Inactive"
+	STY $C480			; ORB1 (fct)
 	INX
-	CPX #13				; 
+	CPX #13
 	BNE .br2
 	
 	LDA TableData,X
@@ -570,128 +624,20 @@ PLAYERYM
 	STY $C400			; ORB1 (fct)
 	LDY #$04			; Set fct "Inactive"
 	STY $C400			; ORB1 (fct)
+	;AY-2
+	STX $C481			; ORA1 (data)
+	LDY #$07			; Set fct "Set PSG Reg #"
+	STY $C480			; ORB1 (fct)
+	LDY #$04			; Set fct "Inactive"
+	STY $C480			; ORB1 (fct)
+	STA $C481			; ORA1 (data)
+	LDY #$06			; Set fct "Write DATA"
+	STY $C480			; ORB1 (fct)
+	LDY #$04			; Set fct "Inactive"
+	STY $C480			; ORB1 (fct)
 		
 .no_r13update1
 
-	; SECOND AY CHIP (same data)
-
-	!zone psg2
-	LDX #00
-	; R0/R1/R2/R3/R4/R5/R6/R7
-.br1	LDA TableData2,X
-	;AY-2
-	STX $C481
-	LDY #$07			; Set fct "Set PSG Reg #"
-	STY $C480
-	LDY #$04			; Set fct "Inactive"
-	STY $C480
-	STA $C481
-	LDY #$06			; Set fct "Write DATA"
-	STY $C480
-	LDY #$04			; Set fct "Inactive"
-	STY $C480
-	INX
-	CPX #8				; 
-	BNE .br1
-	
-	; -----------------------------
-	; VOLUME A			; r8
-	; AY-1
-	lda bvolA
-	BNE .gA1
-	LDA #00
-	JMP .gA2
-	
-.gA1	LDA TableData2,X		; valeur � mettre dans le registre
-.gA2	;AY-2
-	STX $C481
-	LDY #$07			; Set fct "Set PSG Reg #"
-	STY $C480
-	LDY #$04			; Set fct "Inactive"
-	STY $C480
-	STA $C481
-	LDY #$06			; Set fct "Write DATA"
-	STY $C480
-	LDY #$04			; Set fct "Inactive"
-	STY $C480
-	
-	; -----------------------------
-	; VOLUME B
-	INX					; r9
-	lda bvolB
-	BNE .gB1
-	LDA #00
-	JMP .gB2
-
-.gB1	LDA TableData2,X		; valeur � mettre dans le registre dans le Registre 
-.gB2	;AY-2
-	STX $C481
-	LDY #$07			; Set fct "Set PSG Reg #"
-	STY $C480
-	LDY #$04			; Set fct "Inactive"
-	STY $C480
-	STA $C481
-	LDY #$06			; Set fct "Write DATA"
-	STY $C480
-	LDY #$04			; Set fct "Inactive"
-	STY $C480
-	
-	; -----------------------------
-	; VOLUME C
-	INX					; r10
-	lda bvolC
-	BNE .gC1
-	LDA #00
-	JMP .gC2
-		
-.gC1	LDA TableData2,X		; valeur � mettre dans le registre dans le Registre 
-.gC2	;AY-2
-	STX $C481
-	LDY #$07			; Set fct "Set PSG Reg #"
-	STY $C480
-	LDY #$04			; Set fct "Inactive"
-	STY $C480
-	STA $C481
-	LDY #$06			; Set fct "Write DATA"
-	STY $C480
-	LDY #$04			; Set fct "Inactive"
-	STY $C480
-	; -----------------------------
-
-	INX					; r11
-	; R11/R12/R13
-.br2	LDA TableData2,X
-	;AY-2
-	STX $C481
-	LDY #$07			; Set fct "Set PSG Reg #"
-	STY $C480
-	LDY #$04			; Set fct "Inactive"
-	STY $C480
-	STA $C481
-	LDY #$06			; Set fct "Write DATA"
-	STY $C480
-	LDY #$04			; Set fct "Inactive"
-	STY $C480
-	INX
-	CPX #13				; 
-	BNE .br2
-	
-	LDA TableData2,X
-	CMP #$FF
-	BEQ .no_r13update2
-	;AY-2
-	STX $C481
-	LDY #$07			; Set fct "Set PSG Reg #"
-	STY $C480
-	LDY #$04			; Set fct "Inactive"
-	STY $C480
-	STA $C481
-	LDY #$06			; Set fct "Write DATA"
-	STY $C480
-	LDY #$04			; Set fct "Inactive"
-	STY $C480
-		
-.no_r13update2
 
 	ldx #14
 .shiftdata
@@ -900,26 +846,26 @@ Init_MB			; init Mockingboard
 !zone	
 
 	LDA		#$80
-	STA 	OUT4
-	LDA 	OUT2+1
-	STA 	OUT1+1
-	STA		OUT3+1
-	STA 	OUT4+1
+	STA OUT4
+	LDA OUT2+1
+	STA OUT1+1
+	STA OUT3+1
+	STA OUT4+1
 	;STA		OFFBIT+2	; fixe BIT $Cx04 (réinit interruption) du player
-	LDA 	#$01
-	STA 	OUT1
-	LDA 	#$81
-	STA 	OUT3		
+	LDA #$01
+	STA OUT1
+	LDA #$81
+	STA OUT3		
 
 	; PREMIER init MB (OUT2/OUT4)
-	LDA   	#$FF
-	LDY	  	#$03
-	STA 	(OUT2),Y	; STA   $C403		; DDRA1
-	STA 	(OUT4),Y	; STA   $C483		; DDRA2
-	LDA   	#$07
-	LDY 	#$02
-	STA		(OUT2),Y	; STA   $C402		; DDRB1
-	STA		(OUT4),Y	; STA   $C482		; DDRB2
+	LDA #$FF
+	LDY #$03
+	STA (OUT2),Y	; STA   $C403		; DDRA1
+	STA (OUT4),Y	; STA   $C483		; DDRA2
+	LDA #$07
+	LDY #$02
+	STA (OUT2),Y	; STA   $C402		; DDRB1
+	STA (OUT4),Y	; STA   $C482		; DDRB2
 	RTS
 			
 ; =============================================================================
