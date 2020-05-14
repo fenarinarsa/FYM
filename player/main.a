@@ -23,989 +23,951 @@
 !sl "lbl_main.txt"		; sauvegarde labels (debug)
 !cpu 6502
 
-		*= $1000 		; ORG
+	*= $1000 		; ORG
 
 ; CONSTANTES
 
 ; Page ZERO
 
 
-Temp				= $EB
+Temp	= $EB
 
-bvolA				= $F9
-bvolB				= $FA
-bvolC				= $FC
+bvolA	= $F9
+bvolB	= $FA
+bvolC	= $FC
 
-SeqCount			= $F6
-SeqLength			= $FB
+SeqCount	= $F6
+SeqLength	= $FB
 
-OUT1				= $20 	; +$21
-OUT2				= $22 	; +$23
-OUT3				= $24	; +$25
-OUT4				= $26 	; +$27
-pattern		= $28
+OUT1	= $20 	; +$21
+OUT2	= $22 	; +$23
+OUT3	= $24	; +$25
+OUT4	= $26 	; +$27
+pattern	= $28
 
 debug1 = $2a
 debug2 = $2b
 
 
-pPartition		= $F7 ; +$F8	
+pPartition = $F7 ; +$F8	
 
-Mem				= $FD ; +$FE
+Mem	= $FD ; +$FE
 IndexRegister	= $FF
 
-_RAMRDmain	=	$C002
-_RAMRDaux	=	$C003
-_RAMWRTmain	=	$C004
-_RAMWRTaux	=	$C005
+_RAMRDmain = $C002
+_RAMRDaux	= $C003
+_RAMWRTmain = $C004
+_RAMWRTaux = $C005
 
 AUXMOVE = $C311
 A2L = $3E ; source for auxmove
 A4L = $42 ; destination for auxmove
 
-    !macro set_ptr .src, .pointer {
-    	lda #<.src
-    	sta .pointer
-    	lda #>.src
-    	sta .pointer+1
-    }
+!macro set_ptr .src, .pointer {
+	lda #<.src
+	sta .pointer
+	lda #>.src
+	sta .pointer+1
+}
 
 ; =============================================================================
 
 MAIN	
 !zone
-		+set_ptr $1000,A2L
-		+set_ptr $1000+15000,A4L
-		sec
-		jsr AUXMOVE
-		; switches to 48k AUX
-		sta _RAMRDmain
-		sta _RAMWRTmain
-		
-
-		BIT $C051
-		BIT $C054
-		STA $C010  				; strob KB
-		
-		LDA #01
-		STA bvolA
-		STA bvolB
-		STA bvolC
-		
-		; activation MB sur IIc
-		STA $C404
-		STA $C405
-		
-		; d�tection MB (TEST 1 : v�rification Timer 6522)
-
-;		LDX #02					; 2 v�rifs;
-;
-;.bd		LDA $C404				; timer 6522 (Low Order Counter) - attention compte � rebour !;
-;		STA Temp				; 3 cycles
-;		LDA $C404				; + 4 cycles = 7 cycles entre les deux acc�s au timer
-;		SEC						; 
-;		SBC Temp				; 
-;		CMP #$F9				; -7 (compte � rebour) ?
-;		BNE .Ko
-;		DEX
-;		BNE .bd					; boucle d�tection
-;		JMP .Ok
-;		
-		; bad guy
-;.Ko		LDA #'K'
-;		STA $400
-;		LDA #'O'
-;		STA $401
-;.bKo	JMP .bKo
-		JSR DETECTMB
-		;JSR Init_MB
-		;JSR MUTE
-
-	
-.Ok		; good guy
+	+set_ptr $1000,A2L
+	+set_ptr $1000+15000,A4L
+	sec
+	jsr AUXMOVE
+	; switches to 48k AUX
+	sta _RAMRDmain
+	sta _RAMWRTmain
 	
 
-		sta 0xC00F ; enable MOUSETEXT
+	BIT $C051
+	BIT $C054
+	STA $C010  				; strob KB
+	
+	LDA #01
+	STA bvolA
+	STA bvolB
+	STA bvolC
+	
+	; activation MB sur IIc
+	STA $C404
+	STA $C405
+	
 
-		; clear TEXT1
-		ldx #$ff
-		lda	#" "
+	JSR DETECTMB
+	
+.Ok	; good guy
+	
+	sta 0xC00F ; enable MOUSETEXT
+
+	; clear TEXT1
+	ldx #$ff
+	lda	#" "
 .fill	sta $400,x
-		sta $500,x
-		sta $600,x
-		sta $700,x
-		dex
-		bne .fill		
-		; fill TEXT2 for debug
-		ldx #$ff
-		ldy #" "
-		lda	#$20
+	sta $500,x
+	sta $600,x
+	sta $700,x
+	dex
+	bne .fill		
+	; fill TEXT2 for debug
+	ldx #$ff
+	ldy #" "
+	lda	#$20
 .fill1	sta $800,x
-		sta $900,x
-		sta $a00,x
-		sta $b00,x
-		dex
-		bne .fill1
-		
-		LDX #$27
+	sta $900,x
+	sta $a00,x
+	sta $b00,x
+	dex
+	bne .fill1
+	
+	LDX #$27
 .bt		LDA Tregisters,X
-		STA $480,X
-		LDA Title,X
-		STA $500,X
-		LDA Tpointers,X
-		STA $680,X
-		LDA Tpartition,X
-		STA $4A8,X
-		LDA THaut,X
-		STA $400,X
-		LDA TBas,X
-		STA $7D0,X
-		DEX
-		BPL .bt
-		
-		CLC
-		LDA OUT2+1
-		AND #$0F
-		ADC #"0"
-		STA $403
-		
-		; -----------------------------------------------------------
-		; mise en place de l'interruption
-		SEI					; inhib
-		lda	$c08b ; disable ROM
-		lda	$c08b
-		; vecteur
-		LDA #<PLAYERYM
-		STA $FFFE
-		LDA #>PLAYERYM
-		STA $FFFF
-		; interruption - TIMER 1 6522 
-		LDA #%01000000		; continuous interrupt / PB7 disabled
-		STA $C40B			; Auxiliary Control Register
+	STA $480,X
+	LDA Title,X
+	STA $500,X
+	LDA Tpointers,X
+	STA $680,X
+	LDA Tpartition,X
+	STA $4A8,X
+	LDA THaut,X
+	STA $400,X
+	LDA TBas,X
+	STA $7D0,X
+	DEX
+	BPL .bt
+	
+	CLC
+	LDA OUT2+1
+	AND #$0F
+	ADC #"0"
+	STA $403
+	
+	; -----------------------------------------------------------
+	; mise en place de l'interruption
+	SEI					; inhib
+	lda	$c08b ; disable ROM
+	lda	$c08b
+	; vecteur
+	LDA #<PLAYERYM
+	STA $FFFE
+	LDA #>PLAYERYM
+	STA $FFFF
+	; interruption - TIMER 1 6522 
+	LDA #%01000000		; continuous interrupt / PB7 disabled
+	STA $C40B			; Auxiliary Control Register
 
-		LDA #%11000000		; 
-		STA $C40D			; interrupt flag register	(Time Out of Timer 1/Int)
-		STA $C40E			; interrupt Enable register (Timer 1 + Set)
-		
-		; 50 Hz = 20 ms = 20 000 microsecond = 20 000 tick environ (1 Mhz d'holorge) = $4E20
-		; On PAL //c timing are differents, 4F36 is the right number to get the exact same point each VBL
-		; the main clock seems to be 14238000Hz/4 = 1017000Hz
-		; 1017000/$4F36 = 50,15fps, and OSSC indicates a rounded fps value of 50.20Hz so it everything looks like it's the right number
-		; PAL = 1.015657 (20280 cycles / frame) (192*65 + (50*65 + 70*65))
-		; NTSC = 1.020484 (17030 cycles / frame) 192*65 + (70*65)
-		LDA	#$36
-		STA $C404			; T1C-Lower
-		LDA #$4F
-		STA $C405			; T1C-High
-		; -----------------------------------------------------------
-		
-		; init MB (OUT1)
-		LDA   #$FF
-		STA   $C403		; DDRA1
-		STA   $C483		; DDRA2
-		LDA   #$07
-		STA   $C402		; DDRB1
-		STA   $C482		; DDRB2
+	LDA #%11000000		; 
+	STA $C40D			; interrupt flag register	(Time Out of Timer 1/Int)
+	STA $C40E			; interrupt Enable register (Timer 1 + Set)
+	
+	; 50 Hz = 20 ms = 20 000 microsecond = 20 000 tick environ (1 Mhz d'holorge) = $4E20
+	; On PAL //c timing are differents, 4F36 is the right number to get the exact same point each VBL
+	; the main clock seems to be 14238000Hz/4 = 1017000Hz
+	; 1017000/$4F36 = 50,15fps, and OSSC indicates a rounded fps value of 50.20Hz so it everything looks like it's the right number
+	; PAL = 1.015657 (20280 cycles / frame) (192*65 + (50*65 + 70*65))
+	; NTSC = 1.020484 (17030 cycles / frame) 192*65 + (70*65)
+	LDA	#$36
+	STA $C404			; T1C-Lower
+	LDA #$4F
+	STA $C405			; T1C-High
+	; -----------------------------------------------------------
+	
+	; init MB (OUT1)
+	LDA #$FF
+	STA $C403		; DDRA1
+	STA $C483		; DDRA2
+	LDA #$07
+	STA $C402		; DDRB1
+	STA $C482		; DDRB2
 
-		; RESET (clean all registers)
-		LDA #$00	; Set fct "Reset"
-		STA $C400
-		LDA #$04	; Set fct "Inactive"
-		STA $C400
-		
-		LDA #$00	; Set fct "Reset"
-		STA $C480	
-		LDA #$04	; Set fct "Inactive"
-		STA $C480
-		
-		JSR YMRESET
-		
-		LDA #0
-		STA pattern
+	; RESET (clean all registers)
+	LDA #$00	; Set fct "Reset"
+	STA $C400
+	LDA #$04	; Set fct "Inactive"
+	STA $C400
+	
+	LDA #$00	; Set fct "Reset"
+	STA $C480	
+	LDA #$04	; Set fct "Inactive"
+	STA $C480
+	
+	JSR YMRESET
+	
+	LDA #0
+	STA pattern
 
-		; prepare tune data
+	; prepare tune data
 
-		LDA $2000
-		STA SeqLength
-		STA SeqCount
-		
-		; relocate partition pointers
-		LDA #$20
-		STA pPartition+1
-		STA Mem+1
-		LDA #$01
-		STA pPartition
-		STA Mem
+	LDA $2000
+	STA SeqLength
+	STA SeqCount
+	
+	; relocate partition pointers
+	LDA #$20
+	STA pPartition+1
+	STA Mem+1
+	LDA #$01
+	STA pPartition
+	STA Mem
 .reloc1	LDY #0
-		CLC
+	CLC
 .reloc0	LDA (Mem),Y
-		ADC #$20
-		STA (Mem),Y
-		INY
-		CPY #14
-		BNE .reloc0
-		LDY #28
-		LDA (Mem),Y
-		BEQ .end_relocate ; partition end
-		CLC
-		LDA Mem
-		ADC #28
-		STA Mem
-		BCC .reloc1
-		LDA Mem+1
-		ADC #0
-		STA Mem+1
-		JMP .reloc1
+	ADC #$20
+	STA (Mem),Y
+	INY
+	CPY #14
+	BNE .reloc0
+	LDY #28
+	LDA (Mem),Y
+	BEQ .end_relocate ; partition end
+	CLC
+	LDA Mem
+	ADC #28
+	STA Mem
+	BCC .reloc1
+	LDA Mem+1
+	ADC #0
+	STA Mem+1
+	JMP .reloc1
 
 .end_relocate		
 
-		; packbits file format
-		; 1 control byte (n) + ? data bytes
-		; if control byte ==128 => end
-		; if control byte <128 => copy n+1 data bytes
-		; if control byte >128 => repeat 1 data byte 257-n times
+	; packbits file format
+	; 1 control byte (n) + ? data bytes
+	; if control byte ==128 => end
+	; if control byte <128 => copy n+1 data bytes
+	; if control byte >128 => repeat 1 data byte 257-n times
 
 
-		; copy partition pointers
-		LDY #27
+	; copy partition pointers
+	LDY #27
 .copy0	LDA (pPartition),Y
-		STA TableOffsetDataH,Y
-		DEY
-		BPL .copy0
+	STA TableOffsetDataH,Y
+	DEY
+	BPL .copy0
 
-		LDX #13					; registers (0-13)
+	LDX #13					; registers (0-13)
 
 .b1		LDY #00
-		LDA TableOffsetDataB,X
-		STA Mem
-		LDA TableOffsetDataH,X
-		STA Mem+1
-		LDA (Mem),Y				; control byte
-		BPL .b1pos
-		; negative value (repeat mode)
-		STA TableCompression,X ; mode repeat
-		EOR #$FF
-		SEC
-		ADC #$00				; negate A
+	LDA TableOffsetDataB,X
+	STA Mem
+	LDA TableOffsetDataH,X
+	STA Mem+1
+	LDA (Mem),Y				; control byte
+	BPL .b1pos
+	; negative value (repeat mode)
+	STA TableCompression,X ; mode repeat
+	EOR #$FF
+	SEC
+	ADC #$00				; negate A
 .b1pos	CLC
 	ADC #1
-		STA TableCompteur,X
-		INY
-		LDA (Mem),Y				; value byte
-		STA TableData,X
-		CLC						; ptr+2 => to next byte (control or value)
-		LDA Mem
-		ADC #2
-		STA TableOffsetDataB,X
-		LDA Mem+1
-		ADC #0
-		STA TableOffsetDataH,X
-		DEX
-		BPL .b1
+	STA TableCompteur,X
+	INY
+	LDA (Mem),Y				; value byte
+	STA TableData,X
+	CLC						; ptr+2 => to next byte (control or value)
+	LDA Mem
+	ADC #2
+	STA TableOffsetDataB,X
+	LDA Mem+1
+	ADC #0
+	STA TableOffsetDataH,X
+	DEX
+	BPL .b1
 
 		
-start	CLI				; interrupt ON !
+start	CLI	; interrupt ON !
 		
-		; boucle principale (hors int)
+	; main loop
 .BP
-		jsr	debug
+	JSR debug
 
-		; ---------------------
-		; check keyboard
+	; ---------------------
+	; check keyboard
 
-		LDA $C000
-		BPL .BP
-		
-		AND #%11011111	; MIN->MAJ
-		STA $C010
-		
-		CMP #$C1		; A
-		BNE .sk2
-		LDA $412
-		CMP #'A'
-		BNE .s1
-		LDA #' '
-		STA $412
-		JMP .s2
+	LDA $C000
+	BPL .BP
+	
+	AND #%11011111	; MIN->MAJ
+	STA $C010
+	
+	CMP #$C1		; A
+	BNE .sk2
+	LDA $412
+	CMP #'A'
+	BNE .s1
+	LDA #' '
+	STA $412
+	JMP .s2
 .s1		LDA #'A'
-		STA $412		
+	STA $412		
 .s2		LDA bvolA
-		EOR #01
-		STA bvolA
-		JMP .BP
+	EOR #01
+	STA bvolA
+	JMP .BP
 		
 .sk2	CMP #$C2		; B
-		BNE .sk3
-		LDA $413
-		CMP #'B'
-		BNE .s3
-		LDA #' '
-		STA $413
-		JMP .s4
+	BNE .sk3
+	LDA $413
+	CMP #'B'
+	BNE .s3
+	LDA #' '
+	STA $413
+	JMP .s4
 .s3		LDA #'B'
-		STA $413		
+	STA $413		
 .s4		LDA bvolB
-		EOR #01
-		STA bvolB
-		JMP .BP
+	EOR #01
+	STA bvolB
+	JMP .BP
 		
 .sk3	CMP #$C3		; C
-		BNE .BP
-		LDA $414
-		CMP #'C'
-		BNE .s5
-		LDA #' '
-		STA $414
-		JMP .s6
+	BNE .BP
+	LDA $414
+	CMP #'C'
+	BNE .s5
+	LDA #' '
+	STA $414
+	JMP .s6
 .s5		LDA #'C'
-		STA $414		
+	STA $414		
 .s6		LDA bvolC
-		EOR #01
-		STA bvolC
+	EOR #01
+	STA bvolC
 
-		JMP .BP	
+	JMP .BP	
 
-		; RESET (no more sound)
-		LDA #$00	; Set fct "Reset"
-		STA $C400
-		STA $C480	
-		LDA #$04	; Set fct "Inactive"
-		STA $C400
-		STA $C480
-		
-		RTS
+	; RESET (no more sound)
+	LDA #$00	; Set fct "Reset"
+	STA $C400
+	STA $C480	
+	LDA #$04	; Set fct "Inactive"
+	STA $C400
+	STA $C480
+	
+	RTS
 		
 ; =============================================================================
 ; DISPLAY DEBUG INFO
 
-debug	lda	#$00
-		tay
-		tax
-		lda #$05
-		sta	$01
-		lda #$81
-		sta $00
+debug	lda #$00
+	tay
+	tax
+	lda #$05
+	sta $01
+	lda #$81
+	sta $00
 		
 		; display YM registers
 .dbg_reg
-		lda TableData,X
-		jsr	PRBYTE
-		inx
-		cpx #14
-		bne .dbg_reg
+	lda TableData,X
+	jsr PRBYTE
+	inx
+	cpx #14
+	bne .dbg_reg
 
-		; display ptr high
-		lda #$07
-		sta	$01
-		lda #$01
-		sta $00
-		ldx	#$00
-		ldy	#$00
+	; display ptr high
+	lda #$07
+	sta $01
+	lda #$01
+	sta $00
+	ldx #$00
+	ldy #$00
 .dbg_ptrH
-		lda	TableOffsetDataH,X
-		jsr PRBYTE
-		inx
-		cpx #14
-		bne .dbg_ptrH
+	lda TableOffsetDataH,X
+	jsr PRBYTE
+	inx
+	cpx #14
+	bne .dbg_ptrH
 
-		; display ptr low
-		lda #$81
-		sta	$00
-		ldx	#$00
-		ldy	#$00
+	; display ptr low
+	lda #$81
+	sta $00
+	ldx #$00
+	ldy #$00
 .dbg_ptrB
-		lda TableOffsetDataB,X
-		jsr PRBYTE
-		inx
-		cpx #14
-		bne .dbg_ptrB
-		
-		; display RLE control bytes
-		;lda #$07
-		;sta	$01
-		;ldx	#$00
-		;ldy	#$00
+	lda TableOffsetDataB,X
+	jsr PRBYTE
+	inx
+	cpx #14
+	bne .dbg_ptrB
+	
+	; display RLE control bytes
+	;lda #$07
+	;sta	$01
+	;ldx	#$00
+	;ldy	#$00
 ;.dbg_ptrC
 ;		lda	TableCompteur,X
 ;		jsr PRBYTE
 ;		inx
 ;		cpx #14
 ;		bne .dbg_ptrC
-		
-		; display partition pointer
-		lda #$29
-		sta $00
-		lda #$05
-		sta $01
-		ldy #$00
-		ldx #$01
-		lda pPartition,X
-		jsr PRBYTE
-		dex
-		lda pPartition,X
-		jsr PRBYTE
-		iny
-		lda SeqCount
-		jsr PRBYTE
-		iny
-		lda pattern
-		jsr PRBYTE
-		
-		; display timer
+	
+	; display partition pointer
+	lda #$29
+	sta $00
+	lda #$05
+	sta $01
+	ldy #$00
+	ldx #$01
+	lda pPartition,X
+	jsr PRBYTE
+	dex
+	lda pPartition,X
+	jsr PRBYTE
+	iny
+	lda SeqCount
+	jsr PRBYTE
+	iny
+	lda pattern
+	jsr PRBYTE
+	
+	; display timer
 
-		 
-		lda #$00
-		sta $00
-		lda #$04
-		sta $01
-		ldy #$00
-		lda debug2
-		jsr PRBYTE
-		lda debug1
-		jsr PRBYTE
-				
-		rts
+		
+	lda #$00
+	sta $00
+	lda #$04
+	sta $01
+	ldy #$00
+	lda debug2
+	jsr PRBYTE
+	lda debug1
+	jsr PRBYTE
+			
+	rts
 		
 ; =============================================================================
 PLAYERYM
 !zone
-		php
-		pha			; on sauve A
-		TXA
-		PHA
-		TYA
-		PHA
-		;sta $c055
-		; "remplissage" Registres
-		BIT $C404           ; Clears interrupt (T1CL)
+	php
+	pha			; on sauve A
+	TXA
+	PHA
+	TYA
+	PHA
+	;sta $c055
+	; "remplissage" Registres
+	BIT $C404           ; Clears interrupt (T1CL)
 
-		!zone psg1
-		LDX #00
-		; R0/R1/R2/R3/R4/R5/R6/R7
+	!zone psg1
+	LDX #00
+	; R0/R1/R2/R3/R4/R5/R6/R7
 .br1	LDA TableData,X
-		;AY-1
-		STX $C401			; ORA1 (data)
-		LDY #$07			; Set fct "Set PSG Reg #"
-		STY $C400			; ORB1 (fct)
-		LDY #$04			; Set fct "Inactive"
-		STY $C400			; ORB1 (fct)
-		STA $C401			; ORA1 (data)
-		LDY #$06			; Set fct "Write DATA"
-		STY $C400			; ORB1 (fct)
-		LDY #$04			; Set fct "Inactive"
-		STY $C400			; ORB1 (fct)
-		INX
-		CPX #8				; 
-		BNE .br1
-		
-		; -----------------------------
-		; VOLUME A			; r8
-		; AY-1
-		lda bvolA
-		BNE .gA1
-		LDA #00
-		JMP .gA2
+	;AY-1
+	STX $C401			; ORA1 (data)
+	LDY #$07			; Set fct "Set PSG Reg #"
+	STY $C400			; ORB1 (fct)
+	LDY #$04			; Set fct "Inactive"
+	STY $C400			; ORB1 (fct)
+	STA $C401			; ORA1 (data)
+	LDY #$06			; Set fct "Write DATA"
+	STY $C400			; ORB1 (fct)
+	LDY #$04			; Set fct "Inactive"
+	STY $C400			; ORB1 (fct)
+	INX
+	CPX #8				; 
+	BNE .br1
+	
+	; -----------------------------
+	; VOLUME A			; r8
+	; AY-1
+	lda bvolA
+	BNE .gA1
+	LDA #00
+	JMP .gA2
 		
 .gA1	LDA TableData,X		; valeur � mettre dans le registre
 .gA2	;AY-1
-		STX $C401			; ORA1 (data)
-		LDY #$07			; Set fct "Set PSG Reg #"
-		STY $C400			; ORB1 (fct)
-		LDY #$04			; Set fct "Inactive"
-		STY $C400			; ORB1 (fct)
-		STA $C401			; ORA1 (data)
-		LDY #$06			; Set fct "Write DATA"
-		STY $C400			; ORB1 (fct)
-		LDY #$04			; Set fct "Inactive"
-		STY $C400			; ORB1 (fct)
-		
-		; -----------------------------
-		; VOLUME B
-		INX					; r9
-		lda bvolB
-		BNE .gB1
-		LDA #00
-		JMP .gB2
+	STX $C401			; ORA1 (data)
+	LDY #$07			; Set fct "Set PSG Reg #"
+	STY $C400			; ORB1 (fct)
+	LDY #$04			; Set fct "Inactive"
+	STY $C400			; ORB1 (fct)
+	STA $C401			; ORA1 (data)
+	LDY #$06			; Set fct "Write DATA"
+	STY $C400			; ORB1 (fct)
+	LDY #$04			; Set fct "Inactive"
+	STY $C400			; ORB1 (fct)
+	
+	; -----------------------------
+	; VOLUME B
+	INX					; r9
+	lda bvolB
+	BNE .gB1
+	LDA #00
+	JMP .gB2
 
 .gB1	LDA TableData,X		; valeur � mettre dans le registre dans le Registre 
 .gB2	;AY-1
-		STX $C401			; ORA1 (data)
-		LDY #$07			; Set fct "Set PSG Reg #"
-		STY $C400			; ORB1 (fct)
-		LDY #$04			; Set fct "Inactive"
-		STY $C400			; ORB1 (fct)
-		STA $C401			; ORA1 (data)
-		LDY #$06			; Set fct "Write DATA"
-		STY $C400			; ORB1 (fct)
-		LDY #$04			; Set fct "Inactive"
-		STY $C400			; ORB1 (fct)
-		
-		; -----------------------------
-		; VOLUME C
-		INX					; r10
-		lda bvolC
-		BNE .gC1
-		LDA #00
-		JMP .gC2
+	STX $C401			; ORA1 (data)
+	LDY #$07			; Set fct "Set PSG Reg #"
+	STY $C400			; ORB1 (fct)
+	LDY #$04			; Set fct "Inactive"
+	STY $C400			; ORB1 (fct)
+	STA $C401			; ORA1 (data)
+	LDY #$06			; Set fct "Write DATA"
+	STY $C400			; ORB1 (fct)
+	LDY #$04			; Set fct "Inactive"
+	STY $C400			; ORB1 (fct)
+	
+	; -----------------------------
+	; VOLUME C
+	INX					; r10
+	lda bvolC
+	BNE .gC1
+	LDA #00
+	JMP .gC2
 		
 .gC1	LDA TableData,X		; valeur � mettre dans le registre dans le Registre 
 .gC2	;AY-1
-		STX $C401			; ORA1 (data)
-		LDY #$07			; Set fct "Set PSG Reg #"
-		STY $C400			; ORB1 (fct)
-		LDY #$04			; Set fct "Inactive"
-		STY $C400			; ORB1 (fct)
-		STA $C401			; ORA1 (data)
-		LDY #$06			; Set fct "Write DATA"
-		STY $C400			; ORB1 (fct)
-		LDY #$04			; Set fct "Inactive"
-		STY $C400			; ORB1 (fct)
-		; -----------------------------
+	STX $C401			; ORA1 (data)
+	LDY #$07			; Set fct "Set PSG Reg #"
+	STY $C400			; ORB1 (fct)
+	LDY #$04			; Set fct "Inactive"
+	STY $C400			; ORB1 (fct)
+	STA $C401			; ORA1 (data)
+	LDY #$06			; Set fct "Write DATA"
+	STY $C400			; ORB1 (fct)
+	LDY #$04			; Set fct "Inactive"
+	STY $C400			; ORB1 (fct)
+	; -----------------------------
 
-		INX					; r11
-		; R11/R12/R13
+	INX					; r11
+	; R11/R12/R13
 .br2	LDA TableData,X
-		;AY-1
-		STX $C401			; ORA1 (data)
-		LDY #$07			; Set fct "Set PSG Reg #"
-		STY $C400			; ORB1 (fct)
-		LDY #$04			; Set fct "Inactive"
-		STY $C400			; ORB1 (fct)
-		STA $C401			; ORA1 (data)
-		LDY #$06			; Set fct "Write DATA"
-		STY $C400			; ORB1 (fct)
-		LDY #$04			; Set fct "Inactive"
-		STY $C400			; ORB1 (fct)
-		INX
-		CPX #13				; 
-		BNE .br2
-		
-		LDA TableData,X
-		CMP #$FF
-		BEQ .no_r13update1
-		;AY-1
-		STX $C401			; ORA1 (data)
-		LDY #$07			; Set fct "Set PSG Reg #"
-		STY $C400			; ORB1 (fct)
-		LDY #$04			; Set fct "Inactive"
-		STY $C400			; ORB1 (fct)
-		STA $C401			; ORA1 (data)
-		LDY #$06			; Set fct "Write DATA"
-		STY $C400			; ORB1 (fct)
-		LDY #$04			; Set fct "Inactive"
-		STY $C400			; ORB1 (fct)
+	;AY-1
+	STX $C401			; ORA1 (data)
+	LDY #$07			; Set fct "Set PSG Reg #"
+	STY $C400			; ORB1 (fct)
+	LDY #$04			; Set fct "Inactive"
+	STY $C400			; ORB1 (fct)
+	STA $C401			; ORA1 (data)
+	LDY #$06			; Set fct "Write DATA"
+	STY $C400			; ORB1 (fct)
+	LDY #$04			; Set fct "Inactive"
+	STY $C400			; ORB1 (fct)
+	INX
+	CPX #13				; 
+	BNE .br2
+	
+	LDA TableData,X
+	CMP #$FF
+	BEQ .no_r13update1
+	;AY-1
+	STX $C401			; ORA1 (data)
+	LDY #$07			; Set fct "Set PSG Reg #"
+	STY $C400			; ORB1 (fct)
+	LDY #$04			; Set fct "Inactive"
+	STY $C400			; ORB1 (fct)
+	STA $C401			; ORA1 (data)
+	LDY #$06			; Set fct "Write DATA"
+	STY $C400			; ORB1 (fct)
+	LDY #$04			; Set fct "Inactive"
+	STY $C400			; ORB1 (fct)
 		
 .no_r13update1
 
-		; SECOND AY CHIP (same data)
+	; SECOND AY CHIP (same data)
 
-		!zone psg2
-		LDX #00
-		; R0/R1/R2/R3/R4/R5/R6/R7
+	!zone psg2
+	LDX #00
+	; R0/R1/R2/R3/R4/R5/R6/R7
 .br1	LDA TableData2,X
-		;AY-2
-		STX $C481
-		LDY #$07			; Set fct "Set PSG Reg #"
-		STY $C480
-		LDY #$04			; Set fct "Inactive"
-		STY $C480
-		STA $C481
-		LDY #$06			; Set fct "Write DATA"
-		STY $C480
-		LDY #$04			; Set fct "Inactive"
-		STY $C480
-		INX
-		CPX #8				; 
-		BNE .br1
-		
-		; -----------------------------
-		; VOLUME A			; r8
-		; AY-1
-		lda bvolA
-		BNE .gA1
-		LDA #00
-		JMP .gA2
-		
+	;AY-2
+	STX $C481
+	LDY #$07			; Set fct "Set PSG Reg #"
+	STY $C480
+	LDY #$04			; Set fct "Inactive"
+	STY $C480
+	STA $C481
+	LDY #$06			; Set fct "Write DATA"
+	STY $C480
+	LDY #$04			; Set fct "Inactive"
+	STY $C480
+	INX
+	CPX #8				; 
+	BNE .br1
+	
+	; -----------------------------
+	; VOLUME A			; r8
+	; AY-1
+	lda bvolA
+	BNE .gA1
+	LDA #00
+	JMP .gA2
+	
 .gA1	LDA TableData2,X		; valeur � mettre dans le registre
 .gA2	;AY-2
-		STX $C481
-		LDY #$07			; Set fct "Set PSG Reg #"
-		STY $C480
-		LDY #$04			; Set fct "Inactive"
-		STY $C480
-		STA $C481
-		LDY #$06			; Set fct "Write DATA"
-		STY $C480
-		LDY #$04			; Set fct "Inactive"
-		STY $C480
-		
-		; -----------------------------
-		; VOLUME B
-		INX					; r9
-		lda bvolB
-		BNE .gB1
-		LDA #00
-		JMP .gB2
+	STX $C481
+	LDY #$07			; Set fct "Set PSG Reg #"
+	STY $C480
+	LDY #$04			; Set fct "Inactive"
+	STY $C480
+	STA $C481
+	LDY #$06			; Set fct "Write DATA"
+	STY $C480
+	LDY #$04			; Set fct "Inactive"
+	STY $C480
+	
+	; -----------------------------
+	; VOLUME B
+	INX					; r9
+	lda bvolB
+	BNE .gB1
+	LDA #00
+	JMP .gB2
 
 .gB1	LDA TableData2,X		; valeur � mettre dans le registre dans le Registre 
 .gB2	;AY-2
-		STX $C481
-		LDY #$07			; Set fct "Set PSG Reg #"
-		STY $C480
-		LDY #$04			; Set fct "Inactive"
-		STY $C480
-		STA $C481
-		LDY #$06			; Set fct "Write DATA"
-		STY $C480
-		LDY #$04			; Set fct "Inactive"
-		STY $C480
-		
-		; -----------------------------
-		; VOLUME C
-		INX					; r10
-		lda bvolC
-		BNE .gC1
-		LDA #00
-		JMP .gC2
+	STX $C481
+	LDY #$07			; Set fct "Set PSG Reg #"
+	STY $C480
+	LDY #$04			; Set fct "Inactive"
+	STY $C480
+	STA $C481
+	LDY #$06			; Set fct "Write DATA"
+	STY $C480
+	LDY #$04			; Set fct "Inactive"
+	STY $C480
+	
+	; -----------------------------
+	; VOLUME C
+	INX					; r10
+	lda bvolC
+	BNE .gC1
+	LDA #00
+	JMP .gC2
 		
 .gC1	LDA TableData2,X		; valeur � mettre dans le registre dans le Registre 
 .gC2	;AY-2
-		STX $C481
-		LDY #$07			; Set fct "Set PSG Reg #"
-		STY $C480
-		LDY #$04			; Set fct "Inactive"
-		STY $C480
-		STA $C481
-		LDY #$06			; Set fct "Write DATA"
-		STY $C480
-		LDY #$04			; Set fct "Inactive"
-		STY $C480
-		; -----------------------------
+	STX $C481
+	LDY #$07			; Set fct "Set PSG Reg #"
+	STY $C480
+	LDY #$04			; Set fct "Inactive"
+	STY $C480
+	STA $C481
+	LDY #$06			; Set fct "Write DATA"
+	STY $C480
+	LDY #$04			; Set fct "Inactive"
+	STY $C480
+	; -----------------------------
 
-		INX					; r11
-		; R11/R12/R13
+	INX					; r11
+	; R11/R12/R13
 .br2	LDA TableData2,X
-		;AY-2
-		STX $C481
-		LDY #$07			; Set fct "Set PSG Reg #"
-		STY $C480
-		LDY #$04			; Set fct "Inactive"
-		STY $C480
-		STA $C481
-		LDY #$06			; Set fct "Write DATA"
-		STY $C480
-		LDY #$04			; Set fct "Inactive"
-		STY $C480
-		INX
-		CPX #13				; 
-		BNE .br2
-		
-		LDA TableData2,X
-		CMP #$FF
-		BEQ .no_r13update2
-		;AY-2
-		STX $C481
-		LDY #$07			; Set fct "Set PSG Reg #"
-		STY $C480
-		LDY #$04			; Set fct "Inactive"
-		STY $C480
-		STA $C481
-		LDY #$06			; Set fct "Write DATA"
-		STY $C480
-		LDY #$04			; Set fct "Inactive"
-		STY $C480
+	;AY-2
+	STX $C481
+	LDY #$07			; Set fct "Set PSG Reg #"
+	STY $C480
+	LDY #$04			; Set fct "Inactive"
+	STY $C480
+	STA $C481
+	LDY #$06			; Set fct "Write DATA"
+	STY $C480
+	LDY #$04			; Set fct "Inactive"
+	STY $C480
+	INX
+	CPX #13				; 
+	BNE .br2
+	
+	LDA TableData2,X
+	CMP #$FF
+	BEQ .no_r13update2
+	;AY-2
+	STX $C481
+	LDY #$07			; Set fct "Set PSG Reg #"
+	STY $C480
+	LDY #$04			; Set fct "Inactive"
+	STY $C480
+	STA $C481
+	LDY #$06			; Set fct "Write DATA"
+	STY $C480
+	LDY #$04			; Set fct "Inactive"
+	STY $C480
 		
 .no_r13update2
 
-		ldx #14
+	ldx #14
 .shiftdata
-		lda TableData-1,x
-		sta TableData2-1,x
-		dex
-		bne .shiftdata
+	lda TableData-1,x
+	sta TableData2-1,x
+	dex
+	bne .shiftdata
 
-		!zone unpack_data
-		DEC SeqCount
-		BNE .unpack_sequence
-		JMP next_sequence
-		
+	!zone unpack_data
+	DEC SeqCount
+	BNE .unpack_sequence
+	JMP next_sequence
+	
 .unpack_sequence
-		; handling packbits
-		LDX #13
+	; handling packbits
+	LDX #13
 .b2		DEC TableCompteur,X
-		BEQ .nextpacket ; ==0 read next control byte
-		; !=0 still in repeat mode
-		
-		LDA TableCompression,X
-		BNE .g2					; repeat mode
-		
-		; copy mode
-		; ptr+1 next value byte
-		LDY TableOffsetDataB,X
-		STY Mem
-		;CLC
-		;ADC #01
-		INY
-		TYA
-		STA TableOffsetDataB,X
-		LDA TableOffsetDataH,X
-		STA Mem+1
-		;ADC #00
-		;STA TableOffsetDataH,X
-		; take new byte
-		LDY #00
-		LDA (Mem),Y
-		STA TableData,X
-		
+	BEQ .nextpacket ; ==0 read next control byte
+	; !=0 still in repeat mode
+	
+	LDA TableCompression,X
+	BNE .g2					; repeat mode
+	
+	; copy mode
+	; ptr+1 next value byte
+	LDY TableOffsetDataB,X
+	STY Mem
+	;CLC
+	;ADC #01
+	INY
+	TYA
+	STA TableOffsetDataB,X
+	LDA TableOffsetDataH,X
+	STA Mem+1
+	;ADC #00
+	;STA TableOffsetDataH,X
+	; take new byte
+	LDY #00
+	LDA (Mem),Y
+	STA TableData,X
+	
 .g2		DEX
-		BPL .b2
-		
-		jmp exit_interrupt
-
-		;sta $c054
-		;PLY
-		;PLX
-		;PLA
-		;PLP
-		
-		;RTI					; sortie 1
+	BPL .b2
+	
+	jmp exit_interrupt
 
 .nextpacket
-		LDY #00
-		TYA
-		STA TableCompression,X	; clear compression mode
-		LDA TableOffsetDataB,X
-		STA Mem
-		LDA TableOffsetDataH,X
-		STA Mem+1
-		LDA (Mem),Y				; control byte
-		CMP #$80  ; $80 = end
-		;BEQ .endframes
-		BCC .b1pos
-		; negative value (repeat mode)
-		STA TableCompression,X ; mode repeat
-		EOR #$FF
-		SEC
-		ADC #$00				; negate A
+	LDY #00
+	TYA
+	STA TableCompression,X	; clear compression mode
+	LDA TableOffsetDataB,X
+	STA Mem
+	LDA TableOffsetDataH,X
+	STA Mem+1
+	LDA (Mem),Y		; control byte
+	CMP #$80  ; $80 = end
+	;BEQ .endframes
+	BCC .b1pos
+	; negative value (repeat mode)
+	STA TableCompression,X ; mode repeat
+	EOR #$FF
+	SEC
+	ADC #$00		; negate A
 .b1pos	;INC
 	CLC
 	ADC #1
-		STA TableCompteur,X
-		INY
-		LDA (Mem),Y				; value byte
-		STA TableData,X
-		CLC						; ptr+2 => to next byte (control or value)
-		LDA Mem
-		ADC #2
-		STA TableOffsetDataB,X
-		;LDA Mem+1
-		;ADC #0
-		;STA TableOffsetDataH,X
-		
-		
-		JMP .g2
+	STA TableCompteur,X
+	INY
+	LDA (Mem),Y				; value byte
+	STA TableData,X
+	CLC						; ptr+2 => to next byte (control or value)
+	LDA Mem
+	ADC #2
+	STA TableOffsetDataB,X
+
+	JMP .g2
 
 next_sequence
-		; we are at the end of the sequence
-		; reset sequence count
-		LDA SeqLength
-		STA SeqCount
+	; we are at the end of the sequence
+	; reset sequence count
+	LDA SeqLength
+	STA SeqCount
 
-		; next partition sequence (+28 bytes)
-		CLC
-		LDA pPartition
-		ADC #28
-		STA pPartition
-		LDA pPartition+1
-		ADC #0
-		STA pPartition+1
-		inc pattern	; debug
-		
-		LDY #0
-		LDA (pPartition),Y
-		BNE .okay
-		; end of partition, looping to the start of the song
-		STY pattern
-		LDA #$20
-		STA pPartition+1
-		LDA #$01
-		STA pPartition
+	; next partition sequence (+28 bytes)
+	CLC
+	LDA pPartition
+	ADC #28
+	STA pPartition
+	LDA pPartition+1
+	ADC #0
+	STA pPartition+1
+	inc pattern	; debug
+	
+	LDY #0
+	LDA (pPartition),Y
+	BNE .okay
+	; end of partition, looping to the start of the song
+	STY pattern
+	LDA #$20
+	STA pPartition+1
+	LDA #$01
+	STA pPartition
 		
 .okay	; copy partition pointers
-		LDY #27
+	LDY #27
 .copy0	LDA (pPartition),Y
-		STA TableOffsetDataH,Y
-		DEY
-		BPL .copy0
+	STA TableOffsetDataH,Y
+	DEY
+	BPL .copy0
 
-		; reset RLE depack counters
-		LDX #13
+	; reset RLE depack counters
+	LDX #13
 .binit	
-		LDY #00
-		TYA
-		STA TableCompression,X
-		LDA TableOffsetDataB,X
-		STA Mem
-		LDA TableOffsetDataH,X
-		STA Mem+1
-		LDA (Mem),Y				; control byte
-		BPL .binit1
-		; negative value (repeat mode)
-		STA TableCompression,X ; mode repeat
-		EOR #$FF
-		SEC
-		ADC #$00				; negate A
+	LDY #00
+	TYA
+	STA TableCompression,X
+	LDA TableOffsetDataB,X
+	STA Mem
+	LDA TableOffsetDataH,X
+	STA Mem+1
+	LDA (Mem),Y				; control byte
+	BPL .binit1
+	; negative value (repeat mode)
+	STA TableCompression,X ; mode repeat
+	EOR #$FF
+	SEC
+	ADC #$00				; negate A
 .binit1	CLC
 	ADC #1
-		STA TableCompteur,X
-		INY
-		LDA (Mem),Y				; value byte
-		STA TableData,X
-		CLC						; ptr+2 => to next byte (control or value)
-		LDA Mem
-		ADC #2
-		STA TableOffsetDataB,X
-		LDA Mem+1
-		ADC #0
-		STA TableOffsetDataH,X
-		DEX
-		BPL .binit
+	STA TableCompteur,X
+	INY
+	LDA (Mem),Y				; value byte
+	STA TableData,X
+	CLC						; ptr+2 => to next byte (control or value)
+	LDA Mem
+	ADC #2
+	STA TableOffsetDataB,X
+	LDA Mem+1
+	ADC #0
+	STA TableOffsetDataH,X
+	DEX
+	BPL .binit
 
 exit_interrupt
-		lda $c404
-		ldx $c405
-		sta debug1
-		stx debug2
-		; $4f36 - timer
-		sec	
-		lda #$36
-		sbc debug1
-		sta debug1
-		lda #$4f
-		sbc debug2
-		sta debug2
-		
-		STA $c054
-		
-		PLA
-		TAY
-		PLA
-		TAX
-		PLA
-		PLP
-		RTI					; sortie 2
+	lda $c404
+	ldx $c405
+	sta debug1
+	stx debug2
+	; $4f36 - timer
+	sec	
+	lda #$36
+	sbc debug1
+	sta debug1
+	lda #$4f
+	sbc debug2
+	sta debug2
+	
+	STA $c054
+	
+	PLA
+	TAY
+	PLA
+	TAX
+	PLA
+	PLP
+	RTI	; sortie 2
 
 ; -----------------------------------------------------------------------------
 DETECTMB
 !zone
-			; MB / SLOT #?
-			LDA #00
-			STA OUT2
-.bdet		LDA #$07				; on commence en $C7 jusqu'en $C1
-			ORA #$C0				; -> $Cx
-			STA OUT2+1
-			LDY #04					; $CX04
-			LDX #02					; 2 v�rifs
+	; MB / SLOT #?
+	LDA #00
+	STA OUT2
+.bdet	LDA #$07		; on commence en $C7 jusqu'en $C1
+	ORA #$C0		; -> $Cx
+	STA OUT2+1
+	LDY #04		; $CX04
+	LDX #02		; 2 vérifs
 
-.bt			LDA (OUT2),Y			; timer 6522 (Low Order Counter) - attention compte � rebour !
-			STA Temp				; 3 cycles
-			LDA (OUT2),Y			; + 5 cycles = 8 cycles entre les deux acc�s au timer
-			SEC						; 
-			SBC Temp				; 
-			CMP #$F8				; -8 (compte � rebour) ?
-			BNE .Ko
-			DEX
-			BNE .bt					; boucle d�tection
-			INX						; Mocking OK (X=1)
-.end		LDA .bdet+1
-			CLC
-			ADC #"0"
-			STA $403
-			;STX bMB					;
-			RTS
+.bt	LDA (OUT2),Y	; timer 6522 (Low Order Counter) - attention compte � rebour !
+	STA Temp		; 3 cycles
+	LDA (OUT2),Y	; + 5 cycles = 8 cycles entre les deux accès au timer
+	SEC						; 
+	SBC Temp		; 
+	CMP #$F8		; -8 (compte à rebour) ?
+	BNE .Ko
+	DEX
+	BNE .bt		; boucle détection
+	INX		; Mocking OK (X=1)
+.end	LDA .bdet+1
+	CLC
+	ADC #"0"
+	STA $403
+	;STX bMB					;
+	RTS
 		
-.Ko			DEC .bdet+1				; on d�cr�mente le "slot"
-			BNE	.bdet				; on boucle de 7 � 1
-			;INC bGood				; !=0 bad guy si pas de MB  *** Eventuellement � comment si suite OK sans MB ***
-			LDX #00
-			;BEQ .end				; tj pris - on sort (bad guy)
-			RTS
+.Ko	DEC .bdet+1	; on décrémente le "slot"
+	BNE .bdet		; on boucle de 7 à 1
+	;INC bGood	; !=0 bad guy si pas de MB  *** Eventuellement � comment si suite OK sans MB ***
+	LDX #00
+	;BEQ .end		; tj pris - on sort (bad guy)
+	RTS
 			
 ; =============================================================================
 Init_MB			; init Mockingboard		 		
 !zone	
 
-		LDA		#$80
-		STA 	OUT4
-		LDA 	OUT2+1
-		STA 	OUT1+1
-		STA		OUT3+1
-		STA 	OUT4+1
-		;STA		OFFBIT+2	; fixe BIT $Cx04 (r�init interruption) du player
-		LDA 	#$01
-		STA 	OUT1
-		LDA 	#$81
-		STA 	OUT3		
-	
-		; PREMIER init MB (OUT2/OUT4)
-		LDA   	#$FF
-		LDY	  	#$03
-		STA 	(OUT2),Y	; STA   $C403		; DDRA1
-		STA 	(OUT4),Y	; STA   $C483		; DDRA2
-		LDA   	#$07
-		LDY 	#$02
-		STA		(OUT2),Y	; STA   $C402		; DDRB1
-		STA		(OUT4),Y	; STA   $C482		; DDRB2
-		RTS
+	LDA		#$80
+	STA 	OUT4
+	LDA 	OUT2+1
+	STA 	OUT1+1
+	STA		OUT3+1
+	STA 	OUT4+1
+	;STA		OFFBIT+2	; fixe BIT $Cx04 (réinit interruption) du player
+	LDA 	#$01
+	STA 	OUT1
+	LDA 	#$81
+	STA 	OUT3		
+
+	; PREMIER init MB (OUT2/OUT4)
+	LDA   	#$FF
+	LDY	  	#$03
+	STA 	(OUT2),Y	; STA   $C403		; DDRA1
+	STA 	(OUT4),Y	; STA   $C483		; DDRA2
+	LDA   	#$07
+	LDY 	#$02
+	STA		(OUT2),Y	; STA   $C402		; DDRB1
+	STA		(OUT4),Y	; STA   $C482		; DDRB2
+	RTS
 			
 ; =============================================================================
 YMRESET
 !zone
-		LDX #0
-		
+	LDX #0
+	
 .bp		LDA YMResetData,X
 
-		;AY-1
-		STX $C401			; ORA1 (data)
-		LDY #$07			; Set fct "Set PSG Reg #"
-		STY $C400			; ORB1 (fct)
-		LDY #$04			; Set fct "Inactive"
-		STY $C400			; ORB1 (fct)
-		STA $C401			; ORA1 (data)
-		LDY #$06			; Set fct "Write DATA"
-		STY $C400			; ORB1 (fct)
-		LDY #$04			; Set fct "Inactive"
-		STY $C400			; ORB1 (fct)
-		
-		;AY-2
-		STX $C481
-		LDY #$07			; Set fct "Set PSG Reg #"
-		STY $C480
-		LDY #$04			; Set fct "Inactive"
-		STY $C480
-		STA $C481
-		LDY #$06			; Set fct "Write DATA"
-		STY $C480
-		LDY #$04			; Set fct "Inactive"
-		STY $C480
+	;AY-1
+	STX $C401		; ORA1 (data)
+	LDY #$07		; Set fct "Set PSG Reg #"
+	STY $C400		; ORB1 (fct)
+	LDY #$04		; Set fct "Inactive"
+	STY $C400		; ORB1 (fct)
+	STA $C401		; ORA1 (data)
+	LDY #$06		; Set fct "Write DATA"
+	STY $C400		; ORB1 (fct)
+	LDY #$04		; Set fct "Inactive"
+	STY $C400		; ORB1 (fct)
+	
+	;AY-2
+	STX $C481
+	LDY #$07		; Set fct "Set PSG Reg #"
+	STY $C480
+	LDY #$04		; Set fct "Inactive"
+	STY $C480
+	STA $C481
+	LDY #$06		; Set fct "Write DATA"
+	STY $C480
+	LDY #$04		; Set fct "Inactive"
+	STY $C480
 
-		lda	#0
-		sta TableData,X
-		sta TableData2,X
-		
-		INX
-		CPX #14
-		BNE .bp
+	lda #0
+	sta TableData,X
+	sta TableData2,X
+	
+	INX
+	CPX #14
+	BNE .bp
 
-		RTS
+	RTS
 
-YMResetData		!byte 0,0,0,0,0,0,0,$3F,0,0,0,0,0,0
+YMResetData	!byte 0,0,0,0,0,0,0,$3F,0,0,0,0,0,0
 		
 			
 ; =============================================================================
 !align 255,0
-;TableOffsetDataB 		!byte $00,$F7,$6a,$f3,$f0,$af,$ba,$4b,$c6,$e2,$79,$63,$88,$ad
-;TableOffsetDataH 		!byte $20,$27,$29,$31,$34,$39,$3d,$3f,$41,$49,$4e,$54,$54,$54
 TableOffsetDataH 		!byte $20,$26,$2b,$30,$32,$41,$49,$4f,$63,$6e,$71,$81,$87,$88
 TableOffsetDataB 		!byte $00,$41,$92,$d7,$ae,$93,$06,$6c,$97,$84,$bb,$9b,$d4,$39
 
@@ -1013,9 +975,9 @@ TableOffsetDataB 		!byte $00,$41,$92,$d7,$ae,$93,$06,$6c,$97,$84,$bb,$9b,$d4,$39
 TableOffsetDataLoopB	!byte $00,$41,$92,$d7,$ae,$93,$06,$6c,$97,$84,$bb,$9b,$d4,$39
 TableOffsetDataLoopH	!byte $20,$26,$2b,$30,$32,$41,$49,$4f,$63,$6e,$71,$81,$87,$88
 
-TableCompteur 			!fill 14,00
-TableData 				!fill 14,00
-TableData2				!fill 14,00
+TableCompteur 		!fill 14,00
+TableData 		!fill 14,00
+TableData2		!fill 14,00
 TableCompression		!fill 14,00
 
 ;................0000000000111111111122222222223333333333
