@@ -25,10 +25,14 @@
 
 	*= $1000 		; ORG
 
+; SETUP
+
+STEREO = 0	; set to 1 to use both AYs (slower)
+
+
 ; CONSTANTES
 
 ; Page ZERO
-
 
 Temp	= $EB
 
@@ -45,8 +49,15 @@ OUT3	= $24	; +$25
 OUT4	= $26 	; +$27
 pattern	= $28
 
-debug1 = $2a
-debug2 = $2b
+TimeAL = $2a
+TimeAH = $2b
+TimeBL = $2c
+TimeBH = $2d
+CPUlowL = $2e
+CPUlowH = $2f
+CPUhighL = $30
+CPUhighH = $31
+
 
 
 pPartition = $F7 ; +$F8	
@@ -122,9 +133,15 @@ MAIN
 	sta $b00,x
 	dex
 	bne .fill1
+
+init_debug
+	LDA #0
+	STA CPUhighH
+	LDA #70
+	STA CPUlowH	
 	
 	LDX #$27
-.bt		LDA Tregisters,X
+.bt	LDA Tregisters,X
 	STA $480,X
 	LDA Title,X
 	STA $500,X
@@ -132,6 +149,8 @@ MAIN
 	STA $680,X
 	LDA Tpartition,X
 	STA $4A8,X
+	LDA Tcpu,X
+	STA $628,X
 	LDA THaut,X
 	STA $400,X
 	LDA TBas,X
@@ -169,7 +188,7 @@ MAIN
 	; 1017000/$4F36 = 50,15fps, and OSSC indicates a rounded fps value of 50.20Hz so it everything looks like it's the right number
 	; PAL = 1.015657 (20280 cycles / frame) (192*65 + (50*65 + 70*65))
 	; NTSC = 1.020484 (17030 cycles / frame) 192*65 + (70*65)
-	LDA	#$36
+	LDA #$36
 	STA $C404			; T1C-Lower
 	LDA #$4F
 	STA $C405			; T1C-High
@@ -251,7 +270,7 @@ MAIN
 
 	LDX #13					; registers (0-13)
 
-.b1		LDY #00
+.b1	LDY #00
 	LDA TableOffsetDataB,X
 	STA Mem
 	LDA TableOffsetDataH,X
@@ -362,7 +381,7 @@ debug	lda #$00
 	lda #$81
 	sta $00
 		
-		; display YM registers
+	; display YM registers
 .dbg_reg
 	lda TableData,X
 	jsr PRBYTE
@@ -402,11 +421,11 @@ debug	lda #$00
 	;ldx	#$00
 	;ldy	#$00
 ;.dbg_ptrC
-;		lda	TableCompteur,X
-;		jsr PRBYTE
-;		inx
-;		cpx #14
-;		bne .dbg_ptrC
+;	lda	TableCompteur,X
+;	jsr PRBYTE
+;	inx
+;	cpx #14
+;	bne .dbg_ptrC
 	
 	; display partition pointer
 	lda #$29
@@ -427,18 +446,7 @@ debug	lda #$00
 	lda pattern
 	jsr PRBYTE
 	
-	; display timer
 
-		
-	lda #$00
-	sta $00
-	lda #$04
-	sta $01
-	ldy #$00
-	lda debug2
-	jsr PRBYTE
-	lda debug1
-	jsr PRBYTE
 			
 	rts
 		
@@ -455,6 +463,13 @@ PLAYERYM
 	; "remplissage" Registres
 	BIT $C404           ; Clears interrupt (T1CL)
 
+	; gets counter to display CPU time
+	LDX $C404  ; 4
+	LDY $C405  ; 4
+	STX TimeAL ; 3
+	STY TimeAH ; 3
+
+
 	!zone psg
 	LDX #00
 	; R0/R1/R2/R3/R4/R5/R6/R7
@@ -470,6 +485,7 @@ PLAYERYM
 	STY $C400			; ORB1 (fct)
 	LDY #$04			; Set fct "Inactive"
 	STY $C400			; ORB1 (fct)
+!if STEREO=1 {
 	;AY-2
 	STX $C481			; ORA1 (data)
 	LDY #$07			; Set fct "Set PSG Reg #"
@@ -481,6 +497,7 @@ PLAYERYM
 	STY $C480			; ORB1 (fct)
 	LDY #$04			; Set fct "Inactive"
 	STY $C480			; ORB1 (fct)
+	}
 	INX
 	CPX #8				; 
 	BNE .br1
@@ -504,6 +521,7 @@ PLAYERYM
 	STY $C400			; ORB1 (fct)
 	LDY #$04			; Set fct "Inactive"
 	STY $C400			; ORB1 (fct)
+!if STEREO=1 {
 	;AY-2
 	STX $C481			; ORA1 (data)
 	LDY #$07			; Set fct "Set PSG Reg #"
@@ -515,6 +533,7 @@ PLAYERYM
 	STY $C480			; ORB1 (fct)
 	LDY #$04			; Set fct "Inactive"
 	STY $C480			; ORB1 (fct)
+}
 	
 	; -----------------------------
 	; VOLUME B
@@ -536,6 +555,7 @@ PLAYERYM
 	STY $C400			; ORB1 (fct)
 	LDY #$04			; Set fct "Inactive"
 	STY $C400			; ORB1 (fct)
+!if STEREO=1 {
 	;AY-2
 	STX $C481			; ORA1 (data)
 	LDY #$07			; Set fct "Set PSG Reg #"
@@ -547,6 +567,7 @@ PLAYERYM
 	STY $C480			; ORB1 (fct)
 	LDY #$04			; Set fct "Inactive"
 	STY $C480			; ORB1 (fct)
+}
 	
 	; -----------------------------
 	; VOLUME C
@@ -568,6 +589,7 @@ PLAYERYM
 	STY $C400			; ORB1 (fct)
 	LDY #$04			; Set fct "Inactive"
 	STY $C400			; ORB1 (fct)
+!if STEREO=1 {
 	;AY-2
 	STX $C481			; ORA1 (data)
 	LDY #$07			; Set fct "Set PSG Reg #"
@@ -579,6 +601,7 @@ PLAYERYM
 	STY $C480			; ORB1 (fct)
 	LDY #$04			; Set fct "Inactive"
 	STY $C480			; ORB1 (fct)
+}
 	; -----------------------------
 
 	INX			; r11
@@ -595,6 +618,7 @@ PLAYERYM
 	STY $C400			; ORB1 (fct)
 	LDY #$04			; Set fct "Inactive"
 	STY $C400			; ORB1 (fct)
+!if STEREO=1 {
 	;AY-2
 	STX $C481			; ORA1 (data)
 	LDY #$07			; Set fct "Set PSG Reg #"
@@ -606,6 +630,7 @@ PLAYERYM
 	STY $C480			; ORB1 (fct)
 	LDY #$04			; Set fct "Inactive"
 	STY $C480			; ORB1 (fct)
+}
 	INX
 	CPX #13
 	BNE .br2
@@ -624,6 +649,7 @@ PLAYERYM
 	STY $C400			; ORB1 (fct)
 	LDY #$04			; Set fct "Inactive"
 	STY $C400			; ORB1 (fct)
+!if STEREO=1 {
 	;AY-2
 	STX $C481			; ORA1 (data)
 	LDY #$07			; Set fct "Set PSG Reg #"
@@ -635,6 +661,7 @@ PLAYERYM
 	STY $C480			; ORB1 (fct)
 	LDY #$04			; Set fct "Inactive"
 	STY $C480			; ORB1 (fct)
+}
 		
 .no_r13update1
 
@@ -654,7 +681,7 @@ PLAYERYM
 .unpack_sequence
 	; handling packbits
 	LDX #13
-.b2		DEC TableCompteur,X
+.b2	DEC TableCompteur,X
 	BEQ .nextpacket ; ==0 read next control byte
 	; !=0 still in repeat mode
 	
@@ -782,18 +809,87 @@ next_sequence
 	BPL .binit
 
 exit_interrupt
-	lda $c404
-	ldx $c405
-	sta debug1
-	stx debug2
-	; $4f36 - timer
-	sec	
-	lda #$36
-	sbc debug1
-	sta debug1
-	lda #$4f
-	sbc debug2
-	sta debug2
+	; gets counter to display CPU time
+	LDX $C404
+	LDY $C405
+          STX TimeBL
+          STY TimeBH
+
+display_cpu_time
+	; adjust recorded values
+	LDX TimeAL
+	DEX
+	DEX
+	DEX
+	DEX
+	STX TimeAL
+	LDX TimeBL
+	DEX
+	DEX
+	DEX
+	DEX
+	STX TimeBL
+	; substract TIMEA-TIMEB => compte à rebour!
+	SEC
+	LDA TimeAL           ; low
+	SBC TimeBL
+	STA TimeAL
+	LDA TimeAH           ; high
+	SBC TimeBH
+	STA TimeAH
+
+	LDX TimeAH
+	LDY TimeAL
+	CPX CPUlowH
+	BCC .faster	; H < H fast
+	BNE .testslow	; H > H fast ==> slower?
+	; H == H fast
+	CPY CPUlowL
+	BCS .testslow	; L >= L fast ==> slower?
+.faster	STX CPUlowH
+	STY CPUlowL
+	JMP .display
+
+.testslow	CPX CPUhighH
+	BCC .display	; H < H slow ==> end
+	BNE .slower	; H > H slow ==> slower
+	; H == H slow
+	CPY CPUhighL
+	BCC .display	; L < L slow ==> end
+.slower	STX CPUhighH
+	STY CPUhighL
+
+.display
+	; save PRBYTE params
+	LDA $00
+	PHA
+	LDA $01
+	PHA
+	; display timer
+	LDA #$A8
+	STA $00
+	LDA #$06
+	STA $01
+	LDY #$00
+	LDA TimeAH
+	JSR PRBYTE
+	LDA TimeAL
+	JSR PRBYTE
+	INY
+	LDA CPUlowH
+	JSR PRBYTE
+	LDA CPUlowL
+	JSR PRBYTE
+	INY
+	LDA CPUhighH
+	JSR PRBYTE
+	LDA CPUhighL
+	JSR PRBYTE
+	; restore PRBYTE params
+	PLA
+	STA $01
+	PLA
+	STA $00
 	
 	STA $c054
 	
@@ -941,6 +1037,8 @@ Tpointers		!byte $4A
 		!text	"sequence ptr                           "
 Tpartition  	!byte $4A
 		!text	"partition ptr                          "
+Tcpu  	!byte $4A
+		!text	"cpu min  max                           "
 
 
 
