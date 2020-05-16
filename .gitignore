@@ -1,8 +1,8 @@
 *.dsk
 *.b
-*.fym
 *.ym
 bin
 obj
 .vs
 *.txt
+main_grouik.a
