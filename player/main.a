@@ -107,7 +107,8 @@ MAIN
 	STA bvolB
 	STA bvolC
 	
-	; activation MB sur IIc
+	; MB4c activation on IIc
+	LDA #$FF
 	STA $C404
 	STA $C405
 	
@@ -169,7 +170,7 @@ init_debug
 	STA $403
 	
 	; -----------------------------------------------------------
-	; mise en place de l'interruption
+	; interrupt setup
 	SEI					; inhib
 	lda	$c08b ; disable ROM
 	lda	$c08b
@@ -428,7 +429,7 @@ PLAYERYM
 	PHA
 	TYA
 	PHA
-	;sta $c055
+	STA $C055		; uncomment to show player execution time on screen (may be not visible each time you run it)
 	; "remplissage" Registres
 	BIT $C404           ; Clears interrupt (T1CL)
 
@@ -637,61 +638,61 @@ PLAYERYM
 
 	!zone unpack_data
 	DEC SeqCount
-	BEQ next_sequence
+	BNE unpack_pattern
+	JMP next_sequence
 	
 unpack_pattern
 	; handling packbits
-
-	LDY #TableOffsetDataL+28
-	STY .mod01+1
-
+	
 	LDX #13		; 14 registers
-.nextreg
-	; use current register's pattern pointer
-	LDY .mod01+1
-	DEY
-	DEY
-	STY .mod01+1
-	STY .mod02+1
-	STY .mod03+1
-
-	LDY TableCompteur,X
+!for i,0,13 {
+	!zone
+	LDY TableCompteur+i
 	BEQ .controlbyte ; ==0 read next control byte
 	BMI .dupmode
 
 .copymode ; counter is positive
 	DEY
-	STY TableCompteur,X
+	STY TableCompteur+i
 
-	LDY TableIndex,X
-.mod01	LDA (TableOffsetDataL),Y
-	STA TableData,X
+	LDY TableIndex+i
+	LDA (TableOffsetDataL+(i*2)),Y
+	STA TableData+i
 	INY
-	STY TableIndex,X
+	STY TableIndex+i
 	
-	DEX
-	BPL .nextreg
-	BMI exit_interrupt
+!if i<13 {
+	JMP .nextreg
+} else {
+	JMP exit_interrupt
+}
 
 .dupmode	; counter is negative
 	INY
-	STY TableCompteur,x
-	DEX
-	BPL .nextreg
-	BMI exit_interrupt
+	STY TableCompteur+i
+!if i<13 {
+	JMP .nextreg
+} else {
+	JMP exit_interrupt
+}
 
 .controlbyte
-	LDY TableIndex,X
-.mod02	LDA (TableOffsetDataL),Y	; control byte
-	STA TableCompteur,X
+	LDY TableIndex+i
+	LDA (TableOffsetDataL+(i*2)),Y	; control byte
+	STA TableCompteur+i
 	INY
-.mod03	LDA (TableOffsetDataL),Y	; value byte
-	STA TableData,X
+	LDA (TableOffsetDataL+(i*2)),Y	; value byte
+	STA TableData+i
 	INY
-	STY TableIndex,X
-	DEX
-	BPL .nextreg
-	BMI exit_interrupt
+	STY TableIndex+i
+!if i<13 {
+	JMP .nextreg
+} else {
+	JMP exit_interrupt
+}
+
+.nextreg
+}
 
 next_sequence
 	; we are at the end of the pattern sequence
@@ -712,7 +713,7 @@ next_sequence
 	
 	LDY #1
 	LDA (pPartition),Y
-	BNE .okay
+	BNE .no_loop
 	; end of partition, looping to the start of the song
 	LDY #0
 	STY pattern
@@ -721,8 +722,8 @@ next_sequence
 	LDA #$01
 	STA pPartition
 		
-.okay
-	; reset RLE depack counters
+.no_loop
+	; reset packbits depack counters for all 14 registers
 	JSR init_packbits
 
 exit_interrupt
@@ -826,35 +827,28 @@ init_packbits
 	; if control byte <128 => copy n+1 data bytes
 	; if control byte >128 => repeat 1 data byte 257-n times
 
-	LDA #TableOffsetDataL+28
-	STA .mod01+1
-	STA .mod02+1
-
 	; copy partition pointers
-	LDY #27
-.copy0	LDA (pPartition),Y
-	STA TableOffsetDataL,Y
-	DEY
-	BPL .copy0
-
-	LDX #13			; registers (13-0)
-
-.nextreg	LDY .mod01+1
-	DEY
-	DEY
-	STY .mod01+1
-	STY .mod02+1
-	
-	LDY #00
-.mod01	LDA (TableOffsetDataL),Y	; control byte
-	STA TableCompteur,X
+	LDY #0
+!for i,0,27 {
+	LDA (pPartition),Y
+	STA TableOffsetDataL+i
 	INY
-.mod02	LDA (TableOffsetDataL),Y	; value byte
-	STA TableData,X
+}
+
+	; init 13 patterns' packbits
+	LDY #0
+	LDX #2
+!for i,0,13 {
+	LDA (TableOffsetDataL+(i*2)),Y	; control byte
+	STA TableCompteur+i
 	INY
-	STY TableIndex,X
-	DEX
-	BPL .nextreg
+	LDA (TableOffsetDataL+(i*2)),Y	; value byte
+!if i<13 {
+	DEY
+}
+	STA TableData+i
+	STX TableIndex+i
+}
 	RTS
 
 
