@@ -58,6 +58,9 @@ CPUlowH = $2f
 CPUhighL = $30
 CPUhighH = $31
 
+TableOffsetDataL = $40  ; ~4D
+TableOffsetDataH = $41  ; ~4E
+TableIndex = $50
 
 
 pPartition = $F7 ; +$F8	
@@ -223,7 +226,8 @@ init_debug
 	LDA $2000
 	STA SeqLength
 	STA SeqCount
-	
+
+relocate_partition
 	; relocate partition pointers
 	LDA #$20
 	STA pPartition+1
@@ -231,13 +235,14 @@ init_debug
 	LDA #$01
 	STA pPartition
 	STA Mem
-.reloc1	LDY #0
+.reloc1	LDY #1
 	CLC
 .reloc0	LDA (Mem),Y
 	ADC #$20
 	STA (Mem),Y
 	INY
-	CPY #14
+	INY
+	CPY #29
 	BNE .reloc0
 	LDY #28
 	LDA (Mem),Y
@@ -251,52 +256,10 @@ init_debug
 	ADC #0
 	STA Mem+1
 	JMP .reloc1
+.end_relocate
 
-.end_relocate		
+	JSR init_packbits
 
-	; packbits file format
-	; 1 control byte (n) + ? data bytes
-	; if control byte ==128 => end
-	; if control byte <128 => copy n+1 data bytes
-	; if control byte >128 => repeat 1 data byte 257-n times
-
-
-	; copy partition pointers
-	LDY #27
-.copy0	LDA (pPartition),Y
-	STA TableOffsetDataH,Y
-	DEY
-	BPL .copy0
-
-	LDX #13					; registers (0-13)
-
-.b1	LDY #00
-	LDA TableOffsetDataB,X
-	STA Mem
-	LDA TableOffsetDataH,X
-	STA Mem+1
-	LDA (Mem),Y				; control byte
-	BPL .b1pos
-	; negative value (repeat mode)
-	STA TableCompression,X ; mode repeat
-	EOR #$FF
-	SEC
-	ADC #$00				; negate A
-.b1pos	CLC
-	ADC #1
-	STA TableCompteur,X
-	INY
-	LDA (Mem),Y				; value byte
-	STA TableData,X
-	CLC						; ptr+2 => to next byte (control or value)
-	LDA Mem
-	ADC #2
-	STA TableOffsetDataB,X
-	LDA Mem+1
-	ADC #0
-	STA TableOffsetDataH,X
-	DEX
-	BPL .b1
 
 		
 start	CLI	; interrupt ON !
@@ -399,8 +362,9 @@ debug	lda #$00
 .dbg_ptrH
 	lda TableOffsetDataH,X
 	jsr PRBYTE
-	inx
-	cpx #14
+	INX
+	INX
+	cpx #28
 	bne .dbg_ptrH
 
 	; display ptr low
@@ -409,10 +373,11 @@ debug	lda #$00
 	ldx #$00
 	ldy #$00
 .dbg_ptrB
-	lda TableOffsetDataB,X
+	lda TableOffsetDataL,X
 	jsr PRBYTE
 	inx
-	cpx #14
+	INX
+	cpx #28
 	bne .dbg_ptrB
 	
 	; display RLE control bytes
@@ -445,9 +410,7 @@ debug	lda #$00
 	iny
 	lda pattern
 	jsr PRBYTE
-	
-
-			
+		
 	rts
 		
 ; =============================================================================
@@ -666,12 +629,13 @@ PLAYERYM
 .no_r13update1
 
 
-	ldx #14
-.shiftdata
-	lda TableData-1,x
-	sta TableData2-1,x
-	dex
-	bne .shiftdata
+; no reverb
+;	ldx #14
+;.shiftdata
+;	lda TableData-1,x
+;	sta TableData2-1,x
+;	dex
+;	bne .shiftdata
 
 	!zone unpack_data
 	DEC SeqCount
@@ -680,67 +644,75 @@ PLAYERYM
 	
 .unpack_sequence
 	; handling packbits
-	LDX #13
-.b2	DEC TableCompteur,X
+
+	LDY #TableOffsetDataL-2
+	STA .mod01+1
+
+	LDX #13		; 14 registers
+.nextreg	; use current register's pattern pointer
+	LDY .mod01+1
+	INY
+	INY
+	STY .mod01+1
+	STY .mod02+1
+	STY .mod03+1
+
+	DEC TableCompteur,X
+	LDY TableIndex,X
 	BEQ .nextpacket ; ==0 read next control byte
 	; !=0 still in repeat mode
 	
 	LDA TableCompression,X
-	BNE .g2					; repeat mode
+	BNE .nochange		; repeat mode
 	
 	; copy mode
 	; ptr+1 next value byte
-	LDY TableOffsetDataB,X
-	STY Mem
-	;CLC
-	;ADC #01
-	INY
-	TYA
-	STA TableOffsetDataB,X
-	LDA TableOffsetDataH,X
-	STA Mem+1
-	;ADC #00
-	;STA TableOffsetDataH,X
+	;LDY TableOffsetDataB,X
+	;STY Mem
+	;INY
+	;TYA
+	;STA TableOffsetDataB,X
+	;LDA TableOffsetDataH,X
+	;STA Mem+1
 	; take new byte
-	LDY #00
-	LDA (Mem),Y
+	
+.mod01	LDA (TableOffsetDataL),Y
 	STA TableData,X
-	
-.g2		DEX
-	BPL .b2
-	
-	jmp exit_interrupt
+	INY
+	STY TableIndex,X
+.nochange INC .mod01+1
+	INC .mod01+1
+	DEX
+	BPL .nextreg
+	BMI exit_interrupt
 
 .nextpacket
-	LDY #00
-	TYA
+	LDA #00
+;	TYA
 	STA TableCompression,X	; clear compression mode
-	LDA TableOffsetDataB,X
-	STA Mem
-	LDA TableOffsetDataH,X
-	STA Mem+1
-	LDA (Mem),Y		; control byte
-	CMP #$80  ; $80 = end
-	;BEQ .endframes
-	BCC .b1pos
+;	LDA TableOffsetDataB,X
+;	STA Mem
+;	LDA TableOffsetDataH,X
+;	STA Mem+1
+.mod02	LDA (TableOffsetDataL),Y		; control byte
+	;CMP #$80  ; $80 = end
+	BPL .b1pos
 	; negative value (repeat mode)
 	STA TableCompression,X ; mode repeat
 	EOR #$FF
 	SEC
 	ADC #$00		; negate A
-.b1pos	;INC
-	CLC
+.b1pos	CLC
 	ADC #1
 	STA TableCompteur,X
 	INY
-	LDA (Mem),Y				; value byte
+.mod03	LDA (TableOffsetDataL),Y				; value byte
 	STA TableData,X
-	CLC						; ptr+2 => to next byte (control or value)
-	LDA Mem
-	ADC #2
-	STA TableOffsetDataB,X
-
-	JMP .g2
+	INY				; ptr+2 => to next byte (control or value)
+	STY TableIndex,X
+	DEX
+	BPL .nextreg
+	BMI exit_interrupt
 
 next_sequence
 	; we are at the end of the sequence
@@ -771,42 +743,12 @@ next_sequence
 .okay	; copy partition pointers
 	LDY #27
 .copy0	LDA (pPartition),Y
-	STA TableOffsetDataH,Y
+	STA TableOffsetDataL,Y
 	DEY
 	BPL .copy0
 
 	; reset RLE depack counters
-	LDX #13
-.binit	
-	LDY #00
-	TYA
-	STA TableCompression,X
-	LDA TableOffsetDataB,X
-	STA Mem
-	LDA TableOffsetDataH,X
-	STA Mem+1
-	LDA (Mem),Y				; control byte
-	BPL .binit1
-	; negative value (repeat mode)
-	STA TableCompression,X ; mode repeat
-	EOR #$FF
-	SEC
-	ADC #$00				; negate A
-.binit1	CLC
-	ADC #1
-	STA TableCompteur,X
-	INY
-	LDA (Mem),Y				; value byte
-	STA TableData,X
-	CLC						; ptr+2 => to next byte (control or value)
-	LDA Mem
-	ADC #2
-	STA TableOffsetDataB,X
-	LDA Mem+1
-	ADC #0
-	STA TableOffsetDataH,X
-	DEX
-	BPL .binit
+	JSR init_packbits
 
 exit_interrupt
 	; gets counter to display CPU time
@@ -900,6 +842,61 @@ display_cpu_time
 	PLA
 	PLP
 	RTI	; sortie 2
+
+init_packbits
+	!zone
+	; packbits file format
+	; 1 control byte (n) + ? data bytes
+	; if control byte ==128 => end
+	; if control byte <128 => copy n+1 data bytes
+	; if control byte >128 => repeat 1 data byte 257-n times
+
+	LDA #TableOffsetDataL
+	STA .mod01+1
+	STA .mod02+1
+
+	; copy partition pointers
+	LDY #27
+.copy0	LDA (pPartition),Y
+	STA TableOffsetDataL,Y
+	DEY
+	BPL .copy0
+
+	LDX #13			; registers (13-0)
+
+.b1	LDY #00
+	;LDA TableOffsetDataB,X
+	;STA Mem
+	;LDA TableOffsetDataH,X
+	;STA Mem+1
+.mod01	LDA (TableOffsetDataL),Y	; control byte
+	BPL .b1pos
+	; negative value (repeat mode)
+	STA TableCompression,X ; mode repeat
+	EOR #$FF
+	SEC
+	ADC #$00			; negate A
+.b1pos	CLC
+	ADC #1
+	STA TableCompteur,X
+	INY
+.mod02	LDA (TableOffsetDataL),Y	; value byte
+	STA TableData,X
+	INY						; ptr+2 => to next byte (control or value)
+	STY TableIndex,X
+;	LDA Mem
+;	ADC #2
+;	STA TableOffsetDataB,X
+;	LDA Mem+1
+;	ADC #0
+;	STA TableOffsetDataH,X
+	INC .mod01+1
+	INC .mod01+1
+	INC .mod02+1
+	INC .mod02+1
+	DEX
+	BPL .b1
+	RTS
 
 ; -----------------------------------------------------------------------------
 DETECTMB
@@ -997,7 +994,7 @@ YMRESET
 
 	lda #0
 	sta TableData,X
-	sta TableData2,X
+	;sta TableData2,X
 	
 	INX
 	CPX #14
@@ -1010,17 +1007,19 @@ YMResetData	!byte 0,0,0,0,0,0,0,$3F,0,0,0,0,0,0
 			
 ; =============================================================================
 !align 255,0
-TableOffsetDataH 		!byte $20,$26,$2b,$30,$32,$41,$49,$4f,$63,$6e,$71,$81,$87,$88
-TableOffsetDataB 		!byte $00,$41,$92,$d7,$ae,$93,$06,$6c,$97,$84,$bb,$9b,$d4,$39
+;TableOffsetDataH 		!byte $20,$26,$2b,$30,$32,$41,$49,$4f,$63,$6e,$71,$81,$87,$88
+;TableOffsetDataB 		!byte $00,$41,$92,$d7,$ae,$93,$06,$6c,$97,$84,$bb,$9b,$d4,$39
 
 
 TableOffsetDataLoopB	!byte $00,$41,$92,$d7,$ae,$93,$06,$6c,$97,$84,$bb,$9b,$d4,$39
 TableOffsetDataLoopH	!byte $20,$26,$2b,$30,$32,$41,$49,$4f,$63,$6e,$71,$81,$87,$88
 
 TableCompteur 		!fill 14,00
-TableData 		!fill 14,00
-TableData2		!fill 14,00
 TableCompression		!fill 14,00
+;TableIndex		!fill 14,00
+TableData 		!fill 14,00
+;TableData2		!fill 14,00
+
 
 ;................0000000000111111111122222222223333333333
 ;................0123456789012345678901234567890123456789 		
