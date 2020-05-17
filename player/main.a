@@ -27,7 +27,8 @@
 
 ; SETUP
 
-STEREO = 1	; set to 1 to use both AYs (slower)
+STEREO   = 1	; set to 1 to use both AYs (slower)
+FYM_DATA = $2000	; where the FYM (v2) file is loaded
 
 
 ; CONSTANTES
@@ -36,9 +37,6 @@ STEREO = 1	; set to 1 to use both AYs (slower)
 
 Temp	= $EB
 
-bvolA	= $F9
-bvolB	= $FA
-bvolC	= $FC
 
 SeqCount	= $F6
 SeqLength	= $FB
@@ -104,17 +102,14 @@ MAIN
 	BIT $C051
 	BIT $C054
 	STA $C010  				; strob KB
-	
-	LDA #01
-	STA bvolA
-	STA bvolB
-	STA bvolC
+
 	
 	; MB4c activation on IIc
 	LDA #$FF
 	STA $C404
 	STA $C405
 	
+	; NO MB detection (MB in slot #4 mandatory)
 
 	JSR DETECTMB
 	
@@ -182,8 +177,8 @@ init_debug
 	; -----------------------------------------------------------
 	; interrupt setup
 	SEI					; inhib
-	lda	$c08b ; disable ROM
-	lda	$c08b
+	lda $c08b ; disable ROM
+	lda $c08b
 	; vecteur
 	LDA #<PLAYERYM
 	STA $FFFE
@@ -197,16 +192,23 @@ init_debug
 	STA $C40D			; interrupt flag register	(Time Out of Timer 1/Int)
 	STA $C40E			; interrupt Enable register (Timer 1 + Set)
 	
-	; 50 Hz = 20 ms = 20 000 microsecond = 20 000 tick environ (1 Mhz d'holorge) = $4E20
-	; On PAL //c timing are differents, 4F36 is the right number to get the exact same point each VBL
-	; the main clock seems to be 14238000Hz/4 = 1017000Hz
-	; 1017000/$4F36 = 50,15fps, and OSSC indicates a rounded fps value of 50.20Hz so it everything looks like it's the right number
-	; PAL = 1.015657 (20280 cycles / frame) (192*65 + (50*65 + 70*65))
-	; NTSC = 1.020484 (17030 cycles / frame) 192*65 + (70*65)
+	; The 6522 timer to play at 50Hz is different on a PAL or NTSC Apple II
+	; Main Apple II clock is (composite frequency):
+	; PAL = 1.016 MHz
+	; NTSC = 1.0205 MHz
+	; 
+	; The 6522 counter for a complete frame size should be set to
+	; PAL = $4F36 (50.08Hz) = 20280-2 cycles
+	; NTSC = $4284 (~59.94Hz) = 17030-2 cycles
+	;
+	; Because of the clock differences,
+	; to get a frequency 50.08Hz on an NTSC Apple II the 6522 counter should actually be set at $4F88
+	; but the difference is not big enough to be heard
+
 	LDA #$36
-	STA $C404			; T1C-Lower
+	STA $C404		; T1C-Lower
 	LDA #$4F
-	STA $C405			; T1C-High
+	STA $C405		; T1C-High
 	; -----------------------------------------------------------
 	
 	; init MB (OUT1)
@@ -234,23 +236,28 @@ init_debug
 	STA pattern
 
 	; prepare tune data
-
-	LDA $2000
+	; FYM2
+	LDA FYM_DATA+1
 	STA SeqLength
 	STA SeqCount
 
 relocate_partition
+	; file is loaded at $2000
+	CLC
+	LDA FYM_DATA+3
+	ADC #>FYM_DATA    ; relocate main partition ptr
+	STA FYM_DATA+3
 	; relocate partition pointers
-	LDA #$20
-	STA pPartition+1
-	STA Mem+1
-	LDA #$01
+	LDA FYM_DATA+2
 	STA pPartition
 	STA Mem
+	LDA FYM_DATA+3
+	STA pPartition+1
+	STA Mem+1
 .reloc1	LDY #1
 	CLC
 .reloc0	LDA (Mem),Y
-	ADC #$20
+	ADC #>FYM_DATA
 	STA (Mem),Y
 	INY
 	INY
@@ -270,70 +277,50 @@ relocate_partition
 	JMP .reloc1
 .end_relocate
 
-	JSR init_packbits
+!macro init_packbits {
+	!zone
+	; packbits file format
+	; 1 control byte (n) + ? data bytes
+	; if control byte ==$80 => end (not used here)
+	; if control byte >$00 => copy n data bytes
+	; if control byte <$00 => repeat 1 data byte n times
+	; n is always equals to (delta between control byte's value and $00)+1
+	; for example n will be $03 if the control byte is $02 or $FE
+	; => the value of the first byte after the control byte is always copied as is.
 
+	; copy partition pointers
+	LDY #0
+!for i,0,27 {
+	LDA (pPartition),Y
+	STA TableOffsetData+i
+	INY
+ }
+	; init 13 patterns' packbits
+	LDY #0
+	LDX #2
+!for i,0,13 {
+	LDA (TableOffsetData+(i*2)),Y	; control byte
+	STA TableCompteur+i
+	INY
+	LDA (TableOffsetData+(i*2)),Y	; value byte
+!if i<13 {
+	DEY
+  }
+	STA TableData+i
+	STX TableIndex+i
+ }
+}
 
-		
+	; call macro
+	+init_packbits
+
 start	CLI	; interrupt ON !
 		
 	; main loop
-.BP
-	JSR debug
-
-	; ---------------------
-	; check keyboard
-
-	LDA $C000
-	BPL .BP
-	
-	AND #%11011111	; MIN->MAJ
-	STA $C010
-	
-	CMP #$C1		; A
-	BNE .sk2
-	LDA $412
-	CMP #'A'
-	BNE .s1
-	LDA #' '
-	STA $412
-	JMP .s2
-.s1		LDA #'A'
-	STA $412		
-.s2		LDA bvolA
-	EOR #01
-	STA bvolA
+.BP	JSR debug
 	JMP .BP
-		
-.sk2	CMP #$C2		; B
-	BNE .sk3
-	LDA $413
-	CMP #'B'
-	BNE .s3
-	LDA #' '
-	STA $413
-	JMP .s4
-.s3		LDA #'B'
-	STA $413		
-.s4		LDA bvolB
-	EOR #01
-	STA bvolB
-	JMP .BP
-		
-.sk3	CMP #$C3		; C
-	BNE .BP
-	LDA $414
-	CMP #'C'
-	BNE .s5
-	LDA #' '
-	STA $414
-	JMP .s6
-.s5		LDA #'C'
-	STA $414		
-.s6		LDA bvolC
-	EOR #01
-	STA bvolC
 
-	JMP .BP	
+	; We actually never leave. Use Ctrl-Reset!
 
 	; RESET (no more sound)
 	LDA #$00	; Set fct "Reset"
@@ -457,30 +444,55 @@ debug	lda #$00
 	LDA CPUavg2
 	ROL
 	STA CPUavg2
-	; print avg
+	; display CPU time
 	LDA #$A8
 	STA $00
 	LDA #$06
 	STA $01
-	LDY #15
+	LDY #$00
+	LDA TimeAH
+	JSR PRBYTE
+	LDA TimeAL
+	JSR PRBYTE
+	INY
+	LDA CPUlowH
+	JSR PRBYTE
+	LDA CPUlowL
+	JSR PRBYTE
+	INY
+	LDA CPUhighH
+	JSR PRBYTE
+	LDA CPUhighL
+	JSR PRBYTE
+	INY
 	LDA CPUavg2
 	JSR PRBYTE
 	LDA CPUavg1
 	JSR PRBYTE
 
-	rts
+	; resets low/hig every 128 frames
+	LDA CPUavg_index
+	BNE +
+	LDA #0
+	STA CPUhighH
+	STA CPUavg_index
+	LDA #70
+	STA CPUlowH
+
++	rts
 		
 ; =============================================================================
 PLAYERYM
 !zone
-	php
-	pha			; on sauve A
+	; save registers (suboptimal)
+	PHP
+	PHA
 	TXA
 	PHA
 	TYA
 	PHA
-	STA $C055		; uncomment to show player execution time on screen (may be not visible each time you run it)
-	; "remplissage" Registres
+	;STA $C055		; uncomment to show player execution time on screen (may be not visible each time you run it)
+
 	BIT $C404           ; Clears interrupt (T1CL)
 
 	; gets counter to display CPU time
@@ -489,11 +501,13 @@ PLAYERYM
 	STX TimeAL ; 3
 	STY TimeAH ; 3
 
+	; The PSG programming may be unrolled to earn a few more cycles.
+	; However it will be more difficult to support the MB in other slots than #4
 
 	!zone psg
 	LDX #00
-	; R0/R1/R2/R3/R4/R5/R6/R7
-.br1	LDA TableData,X
+	; R0~R12
+.register	LDA TableData,X
 	;AY-1
 	STX $C401			; ORA1 (data)
 	LDY #$07			; Set fct "Set PSG Reg #"
@@ -519,145 +533,12 @@ PLAYERYM
 	STY $C480			; ORB1 (fct)
 	}
 	INX
-	CPX #8				; 
-	BNE .br1
-	
-	; -----------------------------
-	; VOLUME A			; r8
-	lda bvolA
-	BNE .gA1
-	LDA #00
-	JMP .gA2
-		
-.gA1	LDA TableData,X		; value to put into aY register
-.gA2	;AY-1
-	STX $C401			; ORA1 (data)
-	LDY #$07			; Set fct "Set PSG Reg #"
-	STY $C400			; ORB1 (fct)
-	LDY #$04			; Set fct "Inactive"
-	STY $C400			; ORB1 (fct)
-	STA $C401			; ORA1 (data)
-	LDY #$06			; Set fct "Write DATA"
-	STY $C400			; ORB1 (fct)
-	LDY #$04			; Set fct "Inactive"
-	STY $C400			; ORB1 (fct)
-!if STEREO=1 {
-	;AY-2
-	STX $C481			; ORA1 (data)
-	LDY #$07			; Set fct "Set PSG Reg #"
-	STY $C480			; ORB1 (fct)
-	LDY #$04			; Set fct "Inactive"
-	STY $C480			; ORB1 (fct)
-	STA $C481			; ORA1 (data)
-	LDY #$06			; Set fct "Write DATA"
-	STY $C480			; ORB1 (fct)
-	LDY #$04			; Set fct "Inactive"
-	STY $C480			; ORB1 (fct)
-}
-	
-	; -----------------------------
-	; VOLUME B
-	INX			; r9
-	lda bvolB
-	BNE .gB1
-	LDA #00
-	JMP .gB2
-
-.gB1	LDA TableData,X		; value to put into aY register
-.gB2	;AY-1
-	STX $C401			; ORA1 (data)
-	LDY #$07			; Set fct "Set PSG Reg #"
-	STY $C400			; ORB1 (fct)
-	LDY #$04			; Set fct "Inactive"
-	STY $C400			; ORB1 (fct)
-	STA $C401			; ORA1 (data)
-	LDY #$06			; Set fct "Write DATA"
-	STY $C400			; ORB1 (fct)
-	LDY #$04			; Set fct "Inactive"
-	STY $C400			; ORB1 (fct)
-!if STEREO=1 {
-	;AY-2
-	STX $C481			; ORA1 (data)
-	LDY #$07			; Set fct "Set PSG Reg #"
-	STY $C480			; ORB1 (fct)
-	LDY #$04			; Set fct "Inactive"
-	STY $C480			; ORB1 (fct)
-	STA $C481			; ORA1 (data)
-	LDY #$06			; Set fct "Write DATA"
-	STY $C480			; ORB1 (fct)
-	LDY #$04			; Set fct "Inactive"
-	STY $C480			; ORB1 (fct)
-}
-	
-	; -----------------------------
-	; VOLUME C
-	INX			; r10
-	lda bvolC
-	BNE .gC1
-	LDA #00
-	JMP .gC2
-		
-.gC1	LDA TableData,X		; value to put into aY register
-.gC2	;AY-1
-	STX $C401			; ORA1 (data)
-	LDY #$07			; Set fct "Set PSG Reg #"
-	STY $C400			; ORB1 (fct)
-	LDY #$04			; Set fct "Inactive"
-	STY $C400			; ORB1 (fct)
-	STA $C401			; ORA1 (data)
-	LDY #$06			; Set fct "Write DATA"
-	STY $C400			; ORB1 (fct)
-	LDY #$04			; Set fct "Inactive"
-	STY $C400			; ORB1 (fct)
-!if STEREO=1 {
-	;AY-2
-	STX $C481			; ORA1 (data)
-	LDY #$07			; Set fct "Set PSG Reg #"
-	STY $C480			; ORB1 (fct)
-	LDY #$04			; Set fct "Inactive"
-	STY $C480			; ORB1 (fct)
-	STA $C481			; ORA1 (data)
-	LDY #$06			; Set fct "Write DATA"
-	STY $C480			; ORB1 (fct)
-	LDY #$04			; Set fct "Inactive"
-	STY $C480			; ORB1 (fct)
-}
-	; -----------------------------
-
-	INX			; r11
-	; R11/R12/R13
-.br2	LDA TableData,X
-	;AY-1
-	STX $C401			; ORA1 (data)
-	LDY #$07			; Set fct "Set PSG Reg #"
-	STY $C400			; ORB1 (fct)
-	LDY #$04			; Set fct "Inactive"
-	STY $C400			; ORB1 (fct)
-	STA $C401			; ORA1 (data)
-	LDY #$06			; Set fct "Write DATA"
-	STY $C400			; ORB1 (fct)
-	LDY #$04			; Set fct "Inactive"
-	STY $C400			; ORB1 (fct)
-!if STEREO=1 {
-	;AY-2
-	STX $C481			; ORA1 (data)
-	LDY #$07			; Set fct "Set PSG Reg #"
-	STY $C480			; ORB1 (fct)
-	LDY #$04			; Set fct "Inactive"
-	STY $C480			; ORB1 (fct)
-	STA $C481			; ORA1 (data)
-	LDY #$06			; Set fct "Write DATA"
-	STY $C480			; ORB1 (fct)
-	LDY #$04			; Set fct "Inactive"
-	STY $C480			; ORB1 (fct)
-}
-	INX
 	CPX #13
-	BNE .br2
+	BNE .register
 	
-	LDA TableData,X
+	LDA TableData+13
 	CMP #$FF
-	BEQ .no_r13update1
+	BEQ .no_r13update
 	;AY-1
 	STX $C401			; ORA1 (data)
 	LDY #$07			; Set fct "Set PSG Reg #"
@@ -681,20 +562,57 @@ PLAYERYM
 	STY $C480			; ORB1 (fct)
 	LDY #$04			; Set fct "Inactive"
 	STY $C480			; ORB1 (fct)
-}
-		
-.no_r13update1
-
-
+}	
+.no_r13update
 	!zone unpack_data
+
+; ---------- partition handling
+
+	; if SeqCount reaches zero, we step to another patterns sequence in the partition
 	DEC SeqCount
-	BNE unpack_pattern
-	JMP next_sequence
+	BEQ next_sequence
+	JMP unpack_pattern
+
+
+; ---------- load new sequence of 14 pointers in partition
+next_sequence
+	; we are at the end of the pattern sequence
+	; reset sequence count
+	LDA SeqLength
+	STA SeqCount
+
+	LDY #29
+	LDA (pPartition),Y
+	BEQ .looptune
+
+	; next partition sequence (+28 bytes)
+	CLC
+	LDA pPartition
+	ADC #28
+	STA pPartition
+	LDA pPartition+1
+	ADC #0
+	STA pPartition+1
+
+	INC pattern	; debug
+	BNE .newpatterns
 	
+.looptune ; end of partition, looping to the start of the song
+	LDY #0
+	STY pattern
+	LDA FYM_DATA+2
+	STA pPartition
+	LDA FYM_DATA+3
+	STA pPartition+1
+		
+.newpatterns
+	; reset packbits depack counters for all 14 registers
+	+init_packbits
+	JMP exit_interrupt
+
+
+; ---------- handling packbits for each 14 registers
 unpack_pattern
-	; handling packbits
-	
-	LDX #13		; 14 registers
 	CLC
 !for i,0,13 {
 	!zone
@@ -734,46 +652,11 @@ unpack_pattern
 	STA TableData+i
 	INY
 	STY TableIndex+i
-!if i<13 {
-	BCC .nextreg
-} else {
-	BCC exit_interrupt
-}
 
 .nextreg
 }
 
-next_sequence
-	; we are at the end of the pattern sequence
-	; reset sequence count
-	LDA SeqLength
-	STA SeqCount
-
-	; next partition sequence (+28 bytes)
-	CLC
-	LDA pPartition
-	ADC #28
-	STA pPartition
-	LDA pPartition+1
-	ADC #0
-	STA pPartition+1
-
-	INC pattern	; debug
-	
-	LDY #1
-	LDA (pPartition),Y
-	BNE .no_loop
-	; end of partition, looping to the start of the song
-	LDY #0
-	STY pattern
-	LDA #$20
-	STA pPartition+1
-	LDA #$01
-	STA pPartition
-		
-.no_loop
-	; reset packbits depack counters for all 14 registers
-	JSR init_packbits
+; ---------- end of partition handling
 
 exit_interrupt
 	; gets counter to display CPU time
@@ -783,7 +666,7 @@ exit_interrupt
           STY TimeBH
 	STA $c054
 
-display_cpu_time
+compute_cpu_time
 	; adjust recorded values
 	LDX TimeAL
 	DEX
@@ -797,7 +680,7 @@ display_cpu_time
 	DEX
 	DEX
 	STX TimeBL
-	; substract TIMEA-TIMEB => compte à rebour!
+	; TIMEB-TIMEA
 	SEC
 	LDA TimeAL           ; low
 	SBC TimeBL
@@ -816,49 +699,18 @@ display_cpu_time
 	BCS .testslow	; L >= L fast ==> slower?
 .faster	STX CPUlowH
 	STY CPUlowL
-	JMP .display
+	JMP .avg
 
 .testslow	CPX CPUhighH
-	BCC .display	; H < H slow ==> end
+	BCC .avg	; H < H slow ==> end
 	BNE .slower	; H > H slow ==> slower
 	; H == H slow
 	CPY CPUhighL
-	BCC .display	; L < L slow ==> end
+	BCC .avg	; L < L slow ==> end
 .slower	STX CPUhighH
 	STY CPUhighL
 
-.display
-	; save PRBYTE params
-	LDA $00
-	PHA
-	LDA $01
-	PHA
-	; display timer
-	LDA #$A8
-	STA $00
-	LDA #$06
-	STA $01
-	LDY #$00
-	LDA TimeAH
-	JSR PRBYTE
-	LDA TimeAL
-	JSR PRBYTE
-	INY
-	LDA CPUlowH
-	JSR PRBYTE
-	LDA CPUlowL
-	JSR PRBYTE
-	INY
-	LDA CPUhighH
-	JSR PRBYTE
-	LDA CPUhighL
-	JSR PRBYTE
-	; restore PRBYTE params
-	PLA
-	STA $01
-	PLA
-	STA $00
-	; average buffer
+.avg	; save CPU time in average buffer
 	LDY CPUavg_index
 	LDA TimeAL
 	STA CPUavg_buffer,Y
@@ -868,50 +720,15 @@ display_cpu_time
 	INY
 	STY CPUavg_index
 	
-	
-	
 	PLA
 	TAY
 	PLA
 	TAX
 	PLA
 	PLP
-	RTI	; sortie 2
+	RTI
 
-init_packbits
-	!zone
-	; packbits file format
-	; 1 control byte (n) + ? data bytes
-	; if control byte ==$80 => end
-	; if control byte >$00 => copy n data bytes
-	; if control byte <$00 => repeat 1 data byte n times
-	; n is always (delta between control byte's value and $00)+1
-	; for example n will be $03 if the control byte is $02 or $FE
-	; => the value of the first byte after the control byte is always copied as is.
 
-	; copy partition pointers
-	LDY #0
-!for i,0,27 {
-	LDA (pPartition),Y
-	STA TableOffsetData+i
-	INY
-}
-
-	; init 13 patterns' packbits
-	LDY #0
-	LDX #2
-!for i,0,13 {
-	LDA (TableOffsetData+(i*2)),Y	; control byte
-	STA TableCompteur+i
-	INY
-	LDA (TableOffsetData+(i*2)),Y	; value byte
-!if i<13 {
-	DEY
-}
-	STA TableData+i
-	STX TableIndex+i
-}
-	RTS
 
 
 
@@ -921,13 +738,13 @@ DETECTMB
 	; MB / SLOT #?
 	LDA #00
 	STA OUT2
-.bdet	LDA #$07		; on commence en $C7 jusqu'en $C1
+.bdet	LDA #$04		; on commence en $C7 jusqu'en $C1
 	ORA #$C0		; -> $Cx
 	STA OUT2+1
 	LDY #04		; $CX04
 	LDX #02		; 2 vérifs
 
-.bt	LDA (OUT2),Y	; timer 6522 (Low Order Counter) - attention compte � rebour !
+.bt	LDA (OUT2),Y	; timer 6522 (Low Order Counter) - attention compte à rebours !
 	STA Temp		; 3 cycles
 	LDA (OUT2),Y	; + 5 cycles = 8 cycles entre les deux accès au timer
 	SEC						; 
@@ -938,15 +755,15 @@ DETECTMB
 	BNE .bt		; boucle détection
 	INX		; Mocking OK (X=1)
 .end	LDA .bdet+1
+	;LDA #4  ; force to slot 4
 	CLC
 	ADC #"0"
-	STA $403
-	;STX bMB					;
+	STA $403				;
 	RTS
 		
 .Ko	DEC .bdet+1	; on décrémente le "slot"
 	BNE .bdet		; on boucle de 7 à 1
-	;INC bGood	; !=0 bad guy si pas de MB  *** Eventuellement � comment si suite OK sans MB ***
+	;INC bGood	; !=0 bad guy si pas de MB  *** Eventuellement à comment si suite OK sans MB ***
 	LDX #00
 	;BEQ .end		; tj pris - on sort (bad guy)
 	RTS
@@ -955,7 +772,7 @@ DETECTMB
 Init_MB			; init Mockingboard		 		
 !zone	
 
-	LDA		#$80
+	LDA #$80
 	STA OUT4
 	LDA OUT2+1
 	STA OUT1+1
@@ -1030,21 +847,21 @@ TableData 		!fill 14,00
 
 ;................0000000000111111111122222222223333333333
 ;................0123456789012345678901234567890123456789 		
-Title 	!text	" 00112233445566778899AABBCCDD           "	
+Title 	!text " 00112233445566778899AABBCCDD           "	
 ;................0000000000000000111111111111111122222222
 ;................0123456789ABCDEF0123456789ABCDEF01234567
-THaut 	!text	"MB=               ABC     FENARINARSA/FT"
+THaut 	!text "MB=                       FENARINARSA/FT"
 ;................0000000000111111111122222222223333333333
 ;................0123456789012345678901234567890123456789
-TBas !text	 	"PLAYER v0.04 FYM                   2x3CH"
+TBas !text      "PLAYER v05 FYM                     2x3CH"
 Tregisters		!byte $4A
-		!text	"registers                              "
-Tpointers		!byte $4A
-		!text	"patterns ptr                           "
+	!text	"registers                              "
+Tpointers	!byte $4A
+	!text	"patterns ptr                           "
 Tpartition  	!byte $4A
-		!text	"partition ptr                          "
+	!text	"partition ptr                          "
 Tcpu  	!byte $4A
-		!text	"cpu  min  max  avg                     "
+	!text	"cpu  min  max  avg                     "
 
 
 

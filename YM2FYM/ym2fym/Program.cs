@@ -93,11 +93,13 @@ namespace ym2fym
             //String inputfile = @"S:\Emulateurs\Atari ST\stsound\YM\Lary.Emmanuel (Lap)\NextCharts\LAP22_33_upk.YM";
             //String inputfile = @"S:\Emulateurs\Atari ST\stsound\YM\Hippel.Jochen (Mad Max)\Union Demo\Alloy Run_upk.ym";
 
-            String inputfile = @"S:\Emulateurs\Atari ST\stsound\YM\Hippel.Jochen (Mad Max)\Rollout\ROLLOUT2_upk.YM";
+            //String inputfile = @"S:\Emulateurs\Atari ST\stsound\YM\Hippel.Jochen (Mad Max)\Rollout\ROLLOUT2_upk.YM";
+            String inputfile = @"S:\Emulateurs\Apple II\dev\Perso\FYM3\player\tunes\mmmc_happy.ym";
             //String inputfile = @"S:\Emulateurs\Atari ST\stsound\YM\Hippel.Jochen (Mad Max)\Ooh Crickey\Crickey Loader_upk.ym";
             //String inputfile = @"S:\Emulateurs\Atari ST\stsound\YM\Seemann.Frank (Tao)\Just Buggin (Normal)\Just feel it1_upk.ym";
             //String inputfile = @"S:\Emulateurs\Apple II\dev\Perso\MockinboardYM\main\happy.ym";
-            String outputfile = @"S:\Emulateurs\Apple II\dev\Perso\MockinboardYM\main\DATA_rollout.fym";
+            //String outputfile = @"S:\Emulateurs\Apple II\dev\Perso\FYM3\player\tunes\DATA_rollout.fym";
+            String outputfile = @"S:\Emulateurs\Apple II\dev\Perso\FYM3\player\tunes\DATA_happy.fym";
 
             FileInfo fi = new FileInfo(inputfile);
             String fname = fi.Name;
@@ -109,8 +111,8 @@ namespace ym2fym
             int ymsize = 14;
 
             // ZX Spectrum: 1773.4f
-     //        Atari ST: 2000.0f
-            Double inputAYFrequency = 2000.0f;
+            //        Atari ST: 2000.0f
+            Double inputAYFrequency = 2000.0;
             // CPC: 1000.0f
             // Apple II NTSC: 1023.0f
             // Apple II PAL: 1017.0f
@@ -232,21 +234,26 @@ namespace ym2fym
                 buf[12, i] = (byte)(int)(tone / 256);
                 buf[11, i] = (byte)(int)(tone % 256);
 
-
                 if (buf[14, i] != 0 || buf[15, i] != 0 || (buf[1,i] & 0xF0) !=0 || (buf[3, i] & 0xF0) != 0 || (buf[5, i] & 0xF0) != 0)
                     Console.WriteLine("Warning SPECIAL EFFECT on frame {0}", i);
+
+                for (int register = 8; register < 10; register++) {
+                    if (buf[register, i] > 15 && buf[register, i] != 16) {
+                     //   buf[register, i] = (byte)((int)buf[register, i] & 0x10); // discard bits 0-3 when bit 4 of volume is set 
+                   }
+                }
             }
 
 
             // (TEMP YM for testing)
             // Writing back register values into the original array
-            for (int register = 0; register < 16; register++) {
-                if (interleaved) {
-                    for (int off = 0; off < nb_frames; off++) ym[start + (register * nb_frames) + off] = buf[register, off];
-                } else {
-                    for (int off = 0; off < nb_frames; off++) ym[start + off * ymsize + register] = buf[register, off];
-                }
-            }
+            //for (int register = 0; register < 16; register++) {
+            //    if (interleaved) {
+            //        for (int off = 0; off < nb_frames; off++) ym[start + (register * nb_frames) + off] = buf[register, off];
+            //    } else {
+            //        for (int off = 0; off < nb_frames; off++) ym[start + off * ymsize + register] = buf[register, off];
+            //    }
+            //}
             // 1000000 = 0x000F4240   2000000 = 0x001E8480
             // 1023000 = 0x000F9C18
             ym[22] = 0x00;
@@ -377,11 +384,17 @@ namespace ym2fym
             foreach (String s in sequences.Keys.OrderBy(str => str.Length))
             {
                 sorted_packed_sequences.Insert(0, s);
-
             }
+
+
             
             List<String> pages = new List<String>();
             List<byte[]> pages_byte = new List<byte[]>();
+
+            // Reserve 4 bytes on first page for the file header
+            pages.Add("00000000");
+            pages_byte.Add(new byte[256]);
+
             bool ok = false;
             Dictionary<String, int> seqlocations_L = new Dictionary<string, int>();
             Dictionary<String, int> seqlocations_H = new Dictionary<string, int>();
@@ -437,18 +450,33 @@ namespace ym2fym
             for (int pattern=0; pattern< partition[0].Length; pattern++)
             { final_partition[pattern] = pattern; }
 
-            int total_size = 1 // sequence size
-                + partition[0].Length * 28 // partition size
-                + 1;  // 0x00
-            total_size = (total_size / 256) * 256 + (total_size % 256 == 0 ? 0 : 256); // round to 256 bytes
-            int sequences_start = total_size;
-            total_size += pages.Count * 256;
+            Console.WriteLine("{0} patterns in partition", partition[0].Length);
+
+            int total_size = (pages.Count - 1) * 256 + (pages[pages.Count - 1].Length / 2);   // patterns (including header)
+
+            //    + partition[0].Length * 28 // partition size
+            //  + 2;  // 0x0000
+            //total_size = (total_size / 256) * 256 + (total_size % 256 == 0 ? 0 : 256); // round to 256 bytes
+            int partition_start = total_size;
+            total_size += partition[0].Length * 28 // partition size
+                          + 2;  // 0x0000
             Console.WriteLine("File size: {0} bytes", total_size);
 
             byte[] final_file = new byte[total_size];
-            final_file[0] = (byte)final_seqsize;
+
+            // copy patterns
+            for (int page = 0; page < pages.Count; page++) {
+                Array.Copy(pages_byte[page], 0, final_file, page * 256, 256);
+            }
+
+            // file header
+            final_file[0] = 0x00;
+            final_file[1] = (byte)final_seqsize;
+            final_file[2] = (byte)(partition_start & 0xFF);
+            final_file[3] = (byte)((partition_start>>8) & 0xFF);
+
             // for(int partline=0; partline<partition[0].Length; partline++)
-             for(int pattern=0; pattern< final_partition.Length; pattern++)
+            for (int pattern=0; pattern< final_partition.Length; pattern++)
             {
                 int partline = final_partition[pattern];
                 for (int register=0; register<14; register++)
@@ -457,18 +485,15 @@ namespace ym2fym
                     // pointer low byte
                     int low_byte = seqlocations_L[seq];
                     // pointer high byte
-                    int high_byte = (sequences_start / 256) + seqlocations_H[seq];
+                    int high_byte = seqlocations_H[seq];
 
-                    final_file[1 + pattern * 28 + register] = (byte)(high_byte);
-                    final_file[1 + pattern * 28 + 14 + register] = (byte)(low_byte);
+                    final_file[partition_start + pattern * 28 + 1+ register*2] = (byte)(high_byte);
+                    final_file[partition_start + pattern * 28 + register * 2] = (byte)(low_byte);
                     Trace.Write(high_byte.ToString("x2") + low_byte.ToString("x2") +" ");
                 }
                 Trace.WriteLine("");
             }
-            for (int page=0; page<pages.Count; page++)
-            {
-                Array.Copy(pages_byte[page], 0, final_file, sequences_start + page * 256, 256);
-            }
+            
             File.WriteAllBytes(outputfile, final_file);
 
             Console.ReadKey();
