@@ -11,7 +11,7 @@ APPLECOMMANDER = C:\retrodev\bin\ac.jar
 EMULATOR = $(APPLEWIN)
 
 TUNE1_name = TUNE
-TUNE1 = tunes\DATA_mmmc.fym
+TUNE1 = tunes\DATA_happy.fym
 #TUNE2_name = DECADE
 #TUNE2 = tunes\DATA_decade.fym
 #TUNE3_name = LAP

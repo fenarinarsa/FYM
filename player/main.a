@@ -27,7 +27,7 @@
 
 ; SETUP
 
-STEREO = 0	; set to 1 to use both AYs (slower)
+STEREO = 1	; set to 1 to use both AYs (slower)
 
 
 ; CONSTANTES
@@ -245,7 +245,7 @@ relocate_partition
 	INY
 	CPY #29
 	BNE .reloc0
-	LDY #28
+	LDY #29
 	LDA (Mem),Y
 	BEQ .end_relocate ; partition end
 	CLC
@@ -373,27 +373,30 @@ debug	lda #$00
 	sta $00
 	ldx #$00
 	ldy #$00
-	CLC
+	LDA #TableIndex
+	STA .dbg8_mod+1
 .dbg_ptrB
+	CLC
 	lda TableOffsetDataL,X
-	ADC TableIndex,X
+.dbg8_mod	ADC TableIndex
 	jsr PRBYTE
 	inx
 	INX
+	INC .dbg8_mod+1
 	cpx #28
 	bne .dbg_ptrB
 	
 	; display RLE control bytes
-	lda #$04
-	sta $01
-	ldx #$00
-	ldy #$00
-.dbg_ptrC
-	lda TableCompteur,X
-	jsr PRBYTE
-	inx
-	cpx #14
-	bne .dbg_ptrC
+;	lda #$04
+;	sta $01
+;	ldx #$00
+;	ldy #$00
+;.dbg_ptrC
+;	lda TableCompteur,X
+;	jsr PRBYTE
+;	inx
+;	cpx #14
+;	bne .dbg_ptrC
 	
 	; display partition pointer
 	lda #$29
@@ -634,10 +637,9 @@ PLAYERYM
 
 	!zone unpack_data
 	DEC SeqCount
-	BNE unpack_sequence
-	JMP next_sequence
+	BEQ next_sequence
 	
-unpack_sequence
+unpack_pattern
 	; handling packbits
 
 	LDY #TableOffsetDataL+28
@@ -661,8 +663,8 @@ unpack_sequence
 	DEY
 	STY TableCompteur,X
 
-.mod01	LDY TableIndex,X
-	LDA (TableOffsetDataL),Y
+	LDY TableIndex,X
+.mod01	LDA (TableOffsetDataL),Y
 	STA TableData,X
 	INY
 	STY TableIndex,X
@@ -692,7 +694,7 @@ unpack_sequence
 	BMI exit_interrupt
 
 next_sequence
-	; we are at the end of the sequence
+	; we are at the end of the pattern sequence
 	; reset sequence count
 	LDA SeqLength
 	STA SeqCount
@@ -705,12 +707,14 @@ next_sequence
 	LDA pPartition+1
 	ADC #0
 	STA pPartition+1
+
 	INC pattern	; debug
 	
-	LDY #0
+	LDY #1
 	LDA (pPartition),Y
 	BNE .okay
 	; end of partition, looping to the start of the song
+	LDY #0
 	STY pattern
 	LDA #$20
 	STA pPartition+1
@@ -822,7 +826,7 @@ init_packbits
 	; if control byte <128 => copy n+1 data bytes
 	; if control byte >128 => repeat 1 data byte 257-n times
 
-	LDA #TableOffsetDataL
+	LDA #TableOffsetDataL+28
 	STA .mod01+1
 	STA .mod02+1
 
@@ -835,7 +839,13 @@ init_packbits
 
 	LDX #13			; registers (13-0)
 
-.nextreg	LDY #00
+.nextreg	LDY .mod01+1
+	DEY
+	DEY
+	STY .mod01+1
+	STY .mod02+1
+	
+	LDY #00
 .mod01	LDA (TableOffsetDataL),Y	; control byte
 	STA TableCompteur,X
 	INY
@@ -843,45 +853,11 @@ init_packbits
 	STA TableData,X
 	INY
 	STY TableIndex,X
-
-	LDY .mod01+1
-	INY
-	INY
-	STY .mod01+1
-	STY .mod02+1
-
 	DEX
 	BPL .nextreg
 	RTS
 
 
-;	BPL .b1pos
-;	; negative value (repeat mode)
-;	STA TableCompression,X ; mode repeat
-;	EOR #$FF
-;	SEC
-;	ADC #$00			; negate A
-;.b1pos	CLC
-;	ADC #1
-;	STA TableCompteur,X
-;	INY
-;.mod02	LDA (TableOffsetDataL),Y	; value byte
-;	STA TableData,X
-;	INY						; ptr+2 => to next byte (control or value)
-;	STY TableIndex,X
-;;	LDA Mem
-;;	ADC #2
-;;	STA TableOffsetDataB,X
-;;	LDA Mem+1
-;;	ADC #0
-;;	STA TableOffsetDataH,X
-;	INC .mod01+1
-;	INC .mod01+1
-;	INC .mod02+1
-;	INC .mod02+1
-;	DEX
-;	BPL .b1
-;	RTS
 
 ; -----------------------------------------------------------------------------
 DETECTMB
@@ -951,7 +927,7 @@ YMRESET
 !zone
 	LDX #0
 	
-.bp		LDA YMResetData,X
+.bp	LDA YMResetData,X
 
 	;AY-1
 	STX $C401		; ORA1 (data)
@@ -979,7 +955,6 @@ YMRESET
 
 	lda #0
 	sta TableData,X
-	;sta TableData2,X
 	
 	INX
 	CPX #14
@@ -992,18 +967,9 @@ YMResetData	!byte 0,0,0,0,0,0,0,$3F,0,0,0,0,0,0
 			
 ; =============================================================================
 !align 255,0
-;TableOffsetDataH 		!byte $20,$26,$2b,$30,$32,$41,$49,$4f,$63,$6e,$71,$81,$87,$88
-;TableOffsetDataB 		!byte $00,$41,$92,$d7,$ae,$93,$06,$6c,$97,$84,$bb,$9b,$d4,$39
 
 
-TableOffsetDataLoopB	!byte $00,$41,$92,$d7,$ae,$93,$06,$6c,$97,$84,$bb,$9b,$d4,$39
-TableOffsetDataLoopH	!byte $20,$26,$2b,$30,$32,$41,$49,$4f,$63,$6e,$71,$81,$87,$88
-
-;TableCompteur 		!fill 14,00
-;TableCompression		!fill 14,00
-;TableIndex		!fill 14,00
 TableData 		!fill 14,00
-;TableData2		!fill 14,00
 
 
 ;................0000000000111111111122222222223333333333
@@ -1018,7 +984,7 @@ TBas !text	 	"PLAYER v0.04 FYM                   2x3CH"
 Tregisters		!byte $4A
 		!text	"registers                              "
 Tpointers		!byte $4A
-		!text	"sequence ptr                           "
+		!text	"patterns ptr                           "
 Tpartition  	!byte $4A
 		!text	"partition ptr                          "
 Tcpu  	!byte $4A
