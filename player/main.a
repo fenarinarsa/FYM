@@ -1,6 +1,6 @@
 ;@com.wudsn.ide.asm.hardware=APPLE2 
-; Chiptune Player for MOCKINGBOARD (based on FYM format)
-; FYM player
+; Chiptune Player for MOCKINGBOARD (based on FYM format v2)
+; FYM player v05
 ; by fenarinarsa (2019/2020) and Grouik/FRENCH TOUCH (2017)
 ;
 ; This file is part of FYM.
@@ -75,9 +75,6 @@ _RAMRDaux	= $C003
 _RAMWRTmain = $C004
 _RAMWRTaux = $C005
 
-AUXMOVE = $C311
-A2L = $3E ; source for auxmove
-A4L = $42 ; destination for auxmove
 
 !macro set_ptr .src, .pointer {
 	lda #<.src
@@ -90,14 +87,8 @@ A4L = $42 ; destination for auxmove
 
 MAIN	
 !zone
-	+set_ptr $1000,A2L
-	+set_ptr $1000+15000,A4L
-	sec
-	jsr AUXMOVE
-	; switches to 48k AUX
-	sta _RAMRDmain
-	sta _RAMWRTmain
-	
+
+
 
 	BIT $C051
 	BIT $C054
@@ -733,6 +724,9 @@ compute_cpu_time
 
 
 ; -----------------------------------------------------------------------------
+; We don't really use the MB detection for this FYM player.
+; It's only useful for Init_MB
+
 DETECTMB
 !zone
 	; MB / SLOT #?

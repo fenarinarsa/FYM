@@ -94,12 +94,12 @@ namespace ym2fym
             //String inputfile = @"S:\Emulateurs\Atari ST\stsound\YM\Hippel.Jochen (Mad Max)\Union Demo\Alloy Run_upk.ym";
 
             //String inputfile = @"S:\Emulateurs\Atari ST\stsound\YM\Hippel.Jochen (Mad Max)\Rollout\ROLLOUT2_upk.YM";
-            String inputfile = @"S:\Emulateurs\Apple II\dev\Perso\FYM3\player\tunes\mmmc_happy.ym";
+            String inputfile = @"S:\Emulateurs\Apple II\dev\Perso\FYM3\player\tunes\ROLLOUT2_upk.ym";
             //String inputfile = @"S:\Emulateurs\Atari ST\stsound\YM\Hippel.Jochen (Mad Max)\Ooh Crickey\Crickey Loader_upk.ym";
             //String inputfile = @"S:\Emulateurs\Atari ST\stsound\YM\Seemann.Frank (Tao)\Just Buggin (Normal)\Just feel it1_upk.ym";
             //String inputfile = @"S:\Emulateurs\Apple II\dev\Perso\MockinboardYM\main\happy.ym";
             //String outputfile = @"S:\Emulateurs\Apple II\dev\Perso\FYM3\player\tunes\DATA_rollout.fym";
-            String outputfile = @"S:\Emulateurs\Apple II\dev\Perso\FYM3\player\tunes\DATA_happy.fym";
+            String outputfile = @"S:\Emulateurs\Apple II\dev\Perso\FYM3\player\tunes\DATA_rollout.fym";
 
             FileInfo fi = new FileInfo(inputfile);
             String fname = fi.Name;
@@ -214,7 +214,7 @@ namespace ym2fym
             // Changing the AY tones to fit the MB frequency
             // ST is 2Mhz, PAL MB is 1,017Mhz, NTSC MB is 1,023Mhz
             double tone;
-            
+
             for (int i = 0; i < nb_frames; i++)
             {
                // if (buf[13, i] != 255) {
@@ -256,22 +256,26 @@ namespace ym2fym
             //}
             // 1000000 = 0x000F4240   2000000 = 0x001E8480
             // 1023000 = 0x000F9C18
-            ym[22] = 0x00;
-            ym[23] = 0x0F;
-            ym[24] = 0x42;
-            ym[25] = 0x40;
+            //ym[22] = 0x00;
+            //ym[23] = 0x0F;
+            //ym[24] = 0x42;
+            //ym[25] = 0x40;
 
-            ym[22] = 0x00;
-            ym[23] = 0x0F;
-            ym[24] = 0x9c;
-            ym[25] = 0x18;
+            //ym[22] = 0x00;
+            //ym[23] = 0x0F;
+            //ym[24] = 0x9c;
+            //ym[25] = 0x18;
 
-            ym[22] = 0x00;
-            ym[23] = 0x0F;
-            ym[24] = 0x84;
-            ym[25] = 0xA8;
+            //ym[22] = 0x00;
+            //ym[23] = 0x0F;
+            //ym[24] = 0x84;
+            //ym[25] = 0xA8;
 
-            File.WriteAllBytes(inputfile + ".TESTING.ym", ym);
+            //File.WriteAllBytes(inputfile + ".TESTING.ym", ym);
+
+
+            // uncomment to limit the tune's size
+            // nb_frames = nb_frames / 2;
 
 
             // --------------------------------------------------
