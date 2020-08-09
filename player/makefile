@@ -30,6 +30,7 @@ $(DISKNAME): main.b STARTUP.bas $(TUNE1) $(TUNE2) $(TUNE3) $(TUNE4)
 	java -jar $(APPLECOMMANDER) -p $(DISKNAME) $(TUNE4_name) BIN 0x2000 < $(TUNE4)
 	java -jar $(APPLECOMMANDER) -p $(DISKNAME) FYM BIN 0x1000 < main.b
 	copy lbl_main.txt $(APPLEWINPATH)\A2_USER1.SYM
+#	$(TRANSAIR) $(DISKNAME)
 	copy $(DISKNAME) $(APPLEWINPATH)\tmp.dsk
 	$(EMULATOR) -d1 $(APPLEWINPATH)\tmp.dsk
 

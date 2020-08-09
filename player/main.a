@@ -27,7 +27,7 @@
 
 ; SETUP
 
-STEREO   = 1	; set to 1 to use both AYs (slower)
+STEREO   = 0	; set to 1 to use both AYs (slower)
 FYM_DATA = $2000	; where the FYM (v2) file is loaded
 
 
@@ -492,68 +492,80 @@ PLAYERYM
 	STX TimeAL ; 3
 	STY TimeAH ; 3
 
-	; The PSG programming may be unrolled to earn a few more cycles.
-	; However it will be more difficult to support the MB in other slots than #4
+	; This way of programming the two AYs at the same time using $C40x and $C48x
+	; works on the original Mockingboard and emulators but does not on Mockingboard 4c.
+	; On 4c there is only one VIA with address mapping so by poking $C40x, then $C48x,
+	; only one AY is actually set up witht the right data, resulting in a mono sound.
+	; Consequence: when stereo is enabled, it will play as mono on Mockingboard 4c
+	; and as stereo on any other Mockingboard or emulators.
+	; On the plus side, the AY setup is then ~128 cycles faster.
 
 	!zone psg
-	LDX #00
+
+	LDX #$04
+!for i,0,12 {
 	; R0~R12
-.register	LDA TableData,X
-	;AY-1
-	STX $C401			; ORA1 (data)
-	LDY #$07			; Set fct "Set PSG Reg #"
-	STY $C400			; ORB1 (fct)
-	LDY #$04			; Set fct "Inactive"
-	STY $C400			; ORB1 (fct)
+	LDA #i
 	STA $C401			; ORA1 (data)
-	LDY #$06			; Set fct "Write DATA"
-	STY $C400			; ORB1 (fct)
-	LDY #$04			; Set fct "Inactive"
+!if STEREO=1 {
+	STA $C481			; ORA1 (data)
+}
+	LDA TableData+i
+	LDY #$07			; Set fct "Set PSG Reg #"
 	STY $C400			; ORB1 (fct)
 !if STEREO=1 {
-	;AY-2
-	STX $C481			; ORA1 (data)
-	LDY #$07			; Set fct "Set PSG Reg #"
 	STY $C480			; ORB1 (fct)
-	LDY #$04			; Set fct "Inactive"
-	STY $C480			; ORB1 (fct)
+}
+				; Set fct "Inactive"
+	STX $C400			; ORB1 (fct)
+	STA $C401			; ORA1 (data)
+!if STEREO=1 {
+	STX $C480			; ORB1 (fct)
 	STA $C481			; ORA1 (data)
+}
 	LDY #$06			; Set fct "Write DATA"
+	STY $C400			; ORB1 (fct)
+!if STEREO=1 {
 	STY $C480			; ORB1 (fct)
-	LDY #$04			; Set fct "Inactive"
-	STY $C480			; ORB1 (fct)
-	}
-	INX
-	CPX #13
-	BNE .register
+}
+				; Set fct "Inactive"
+	STX $C400			; ORB1 (fct)
+!if STEREO=1 {
+	STX $C480			; ORB1 (fct)
+}
+}
 	
 	LDA TableData+13
 	CMP #$FF
 	BEQ .no_r13update
-	;AY-1
-	STX $C401			; ORA1 (data)
-	LDY #$07			; Set fct "Set PSG Reg #"
-	STY $C400			; ORB1 (fct)
-	LDY #$04			; Set fct "Inactive"
-	STY $C400			; ORB1 (fct)
+	LDA #13
 	STA $C401			; ORA1 (data)
-	LDY #$06			; Set fct "Write DATA"
-	STY $C400			; ORB1 (fct)
-	LDY #$04			; Set fct "Inactive"
+!if STEREO=1 {
+	STA $C481			; ORA1 (data)
+}
+	LDA TableData+i
+	LDY #$07			; Set fct "Set PSG Reg #"
 	STY $C400			; ORB1 (fct)
 !if STEREO=1 {
-	;AY-2
-	STX $C481			; ORA1 (data)
-	LDY #$07			; Set fct "Set PSG Reg #"
 	STY $C480			; ORB1 (fct)
-	LDY #$04			; Set fct "Inactive"
-	STY $C480			; ORB1 (fct)
+}
+				; Set fct "Inactive"
+	STX $C400			; ORB1 (fct)
+	STA $C401			; ORA1 (data)
+!if STEREO=1 {
+	STX $C480			; ORB1 (fct)
 	STA $C481			; ORA1 (data)
+}
 	LDY #$06			; Set fct "Write DATA"
+	STY $C400			; ORB1 (fct)
+!if STEREO=1 {
 	STY $C480			; ORB1 (fct)
-	LDY #$04			; Set fct "Inactive"
-	STY $C480			; ORB1 (fct)
-}	
+}
+				; Set fct "Inactive"
+	STX $C400			; ORB1 (fct)
+!if STEREO=1 {
+	STX $C480			; ORB1 (fct)
+}
 .no_r13update
 	!zone unpack_data
 
@@ -659,19 +671,19 @@ exit_interrupt
 
 compute_cpu_time
 	; adjust recorded values
-	LDX TimeAL
-	DEX
-	DEX
-	DEX
-	DEX
-	STX TimeAL
-	LDX TimeBL
-	DEX
-	DEX
-	DEX
-	DEX
-	STX TimeBL
-	; TIMEB-TIMEA
+
+	; substract 4 cycles on each recorded low byte
+	; to match its actual value when we recorded the high byte
+	LDA TimeBL
+	SEC
+	SBC #4
+	STA TimeBL
+	LDA TimeAL
+	SEC
+	SBC #4
+	STA TimeAL
+
+	; TIMEA = TIMEB - TIMEA
 	SEC
 	LDA TimeAL           ; low
 	SBC TimeBL
@@ -679,6 +691,18 @@ compute_cpu_time
 	LDA TimeAH           ; high
 	SBC TimeBH
 	STA TimeAH
+
+	; substract 14 cycles from the result to compensate for the 4 instructions
+	; used to record the actual values
+	; TIMEA = TIMEA - 14
+	SEC
+	LDA TimeAL           ; low
+	SBC #14
+	STA TimeAL
+	LDA TimeAH           ; high
+	SBC #0
+	STA TimeAH
+
 
 	LDX TimeAH
 	LDY TimeAL
