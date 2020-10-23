@@ -23,7 +23,7 @@ all: $(DISKNAME)
 
 $(DISKNAME): main.b STARTUP.bas $(TUNE1) $(TUNE2) $(TUNE3) $(TUNE4)
 	copy C:\jac\wudsn\Tools\template_prodos.dsk $(DISKNAME)
-	java -jar $(APPLECOMMANDER) -bas $(DISKNAME) STARTUP < STARTUP.bas
+	java -jar $(APPLECOMMANDER) -bas $(DISKNAME) PLAY < STARTUP.bas
 	java -jar $(APPLECOMMANDER) -p $(DISKNAME) $(TUNE1_name) BIN 0x2000 < $(TUNE1)
 	java -jar $(APPLECOMMANDER) -p $(DISKNAME) $(TUNE2_name) BIN 0x2000 < $(TUNE2)
 	java -jar $(APPLECOMMANDER) -p $(DISKNAME) $(TUNE3_name) BIN 0x2000 < $(TUNE3)
@@ -34,7 +34,7 @@ $(DISKNAME): main.b STARTUP.bas $(TUNE1) $(TUNE2) $(TUNE3) $(TUNE4)
 	copy $(DISKNAME) $(APPLEWINPATH)\tmp.dsk
 	$(EMULATOR) -d1 $(APPLEWINPATH)\tmp.dsk
 
-main.b: main.a tools.a
+main.b: main.a tools.a macros.a
 	$(ACME) main.b main.a
 
 clean:

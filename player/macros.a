@@ -1,0 +1,145 @@
+;@com.wudsn.ide.asm.hardware=APPLE2 
+; ACME
+; Macros
+; by fenarinarsa 2019
+;
+;This file is part of Latecomer.
+;
+;    Latecomer is free software: you can redistribute it and/or modify
+;    it under the terms of the GNU General Public License as published by
+;    the Free Software Foundation, either version 3 of the License, or
+;    (at your option) any later version.
+;
+;    Latecomer is distributed in the hope that it will be useful,
+;    but WITHOUT ANY WARRANTY; without even the implied warranty of
+;    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;    GNU General Public License for more details.
+;
+;    You should have received a copy of the GNU General Public License
+;    along with Latecomer.  If not, see <https://www.gnu.org/licenses/>.
+;
+
+!macro inc16 .target {
+	inc .target
+	bne +	; "bne * + 5" would not work in zp
+	inc .target + 1
++
+ }
+!macro add8to16 .src, .target {
+	clc
+	lda .target
+    	adc #.src
+    	sta .target
+    	lda .target+1
+    	adc #0
+    	sta .target+1
+}
+!macro sub8to16 .src, .target {
+	sec
+	lda .target
+    	sbc #.src
+    	sta .target
+    	lda .target+1
+    	sbc #0
+    	sta .target+1
+}
+!macro add8to16mem .src, .target {
+	clc
+	lda .target
+    	adc .src
+    	sta .target
+    	lda .target+1
+    	adc #0
+    	sta .target+1
+}
+!macro sub8to16mem .src, .target {
+	sec
+	lda .target
+    	sbc .src
+    	sta .target
+    	lda .target+1
+    	sbc #0
+    	sta .target+1
+}
+!macro add16direct .src, .target {
+	clc
+	lda .target
+    adc #(.src & $ff)
+    sta .target
+    lda .target+1
+    adc #((.src>>8) & $ff)
+    sta .target+1
+}
+!macro add16mem .src, .target {
+	clc
+	lda .target
+	adc .src
+	sta .target
+	lda .target+1
+	adc .src+1
+	sta .target+1
+}
+!macro set_ptr .src, .pointer {
+	lda #<.src
+	sta .pointer
+	lda #>.src
+	sta .pointer+1
+}
+!macro set_ptr2 .src, .pointer1, .pointer2 {
+	lda #<.src
+	sta .pointer1
+	sta .pointer1
+	lda #>.src
+	sta .pointer2+1
+	sta .pointer2+1
+}
+!macro modify .src, .instruction {
+	lda #<.src
+	sta .instruction+1
+	lda #>.src
+	sta .instruction+2
+}
+!macro mov16 .src, .dest {
+	lda .src
+	sta .dest
+	lda .src+1
+	sta .dest+1
+}
+
+    ; erase a previously plotted dot on screen
+	; x = plot # in backup buffers
+!macro eraseplot erase_lo, erase_hi, erase_x {
+	lda erase_lo,x
+	sta line_ptr
+	lda erase_hi,x
+	sta line_ptr+1
+	ldy erase_x,x
+	lda #0
+	sta (line_ptr),y
+	iny
+	sta (line_ptr),y
+}
+
+; monitoring CPU time in AppleWin FT
+!macro start_monitoring {
+!if DEBUG=1 {
+	STA $C067
+	}
+}
+
+!macro stop_monitoring {
+!if DEBUG=1 {
+	STA $C066
+	}
+}
+!macro start_monitoring_interrupt {
+!if DEBUG=1 {
+	STA $C069
+	}
+}
+
+!macro stop_monitoring_interrupt {
+!if DEBUG=1 {
+	STA $C068
+	}
+}

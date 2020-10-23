@@ -23,13 +23,16 @@
 !sl "lbl_main.txt"		; sauvegarde labels (debug)
 !cpu 6502
 
+!source "macros.a"
+
 	*= $1000 		; ORG
 
 ; SETUP
 
-STEREO   = 0	; set to 1 to use both AYs (slower)
+STEREO   = 1	; set to 1 to use both AYs (slower)
 FYM_DATA = $2000	; where the FYM (v2) file is loaded
 
+DEBUG = 1   ; enable debug info in AppleWin
 
 ; CONSTANTES
 
@@ -75,13 +78,6 @@ _RAMRDaux	= $C003
 _RAMWRTmain = $C004
 _RAMWRTaux = $C005
 
-
-!macro set_ptr .src, .pointer {
-	lda #<.src
-	sta .pointer
-	lda #>.src
-	sta .pointer+1
-}
 
 ; =============================================================================
 
@@ -475,6 +471,7 @@ debug	lda #$00
 ; =============================================================================
 PLAYERYM
 !zone
+	+start_monitoring_interrupt
 	; save registers (suboptimal)
 	PHP
 	PHA
@@ -741,6 +738,7 @@ compute_cpu_time
 	TAX
 	PLA
 	PLP
+	+stop_monitoring_interrupt
 	RTI
 
 
