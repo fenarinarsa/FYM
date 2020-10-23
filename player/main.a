@@ -29,7 +29,7 @@
 
 ; SETUP
 
-STEREO   = 1	; set to 1 to use both AYs (slower)
+STEREO   = 0	; set to 1 to use both AYs (slower)
 FYM_DATA = $2000	; where the FYM (v2) file is loaded
 
 DEBUG = 1   ; enable debug info in AppleWin
@@ -67,7 +67,7 @@ CPUavg_buffer = $1E00
 TableOffsetData = $40  ; ~$5B
 TableIndex = $5C	; ~$69
 TableCompteur = $6A	; ~ $77
-pPartition = $78	; +$5D	
+pPartition = $78	; +$79
 
 
 Mem	= $FD ; +$FE
@@ -83,9 +83,6 @@ _RAMWRTaux = $C005
 
 MAIN	
 !zone
-
-
-
 	BIT $C051
 	BIT $C054
 	STA $C010  				; strob KB
@@ -371,18 +368,6 @@ debug	lda #$00
 	cpx #28
 	bne .dbg_ptrB
 	
-	; display RLE control bytes
-;	lda #$04
-;	sta $01
-;	ldx #$00
-;	ldy #$00
-;.dbg_ptrC
-;	lda TableCompteur,X
-;	jsr PRBYTE
-;	inx
-;	cpx #14
-;	bne .dbg_ptrC
-	
 	; display partition pointer
 	lda #$29
 	sta $00
@@ -659,6 +644,8 @@ unpack_pattern
 ; ---------- end of partition handling
 
 exit_interrupt
+	+stop_monitoring_interrupt
+
 	; gets counter to display CPU time
 	LDX $C404
 	LDY $C405
@@ -738,7 +725,7 @@ compute_cpu_time
 	TAX
 	PLA
 	PLP
-	+stop_monitoring_interrupt
+	
 	RTI
 
 
